@@ -2,9 +2,22 @@ const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
- * ✅ Student dashboard: Fetch own details and return for digital ID card
- * Login student can see own data + QR code
+ * Dynamic calculation of Academic Year & Valid Until date based on standard June-May school session
  */
+function getAcademicValidity(date = new Date()) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 1 = Jan, 6 = June
+    const startYear = month >= 6 ? year : year - 1;
+    const endYear = startYear + 1;
+
+    return {
+        academic_year: `${startYear} - ${String(endYear).slice(-2)}`,
+        academic_year_full: `${startYear} - ${endYear}`,
+        valid_until: `31/05/${endYear}`,
+        valid_until_iso: `${endYear}-05-31`
+    };
+}
+
 /**
  * ✅ Student dashboard: Fetch own details and return for digital ID card
  * Login student can see own data + QR code
@@ -23,9 +36,19 @@ exports.getMyDigitalId = async (req, res) => {
         const studentId = user.id;
 
         const query = `
-            SELECT *
-            FROM student_forms
-            WHERE id = :studentId AND status = 'approved'
+            SELECT 
+                sf.*,
+                COALESCE(d.class_name, c.class_name) AS class_name,
+                d.division_name,
+                s.school_name,
+                s.logo AS school_logo,
+                s.address AS school_address,
+                s.state AS school_state
+            FROM student_forms sf
+            LEFT JOIN divisions d ON sf.division_id = d.id
+            LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
+            LEFT JOIN schools s ON sf.school_id = s.id
+            WHERE sf.id = :studentId AND sf.status = 'approved'
             LIMIT 1
         `;
 
@@ -50,6 +73,19 @@ exports.getMyDigitalId = async (req, res) => {
         if (student.photo && student.photo.startsWith("/")) {
             student.photo = `${mainBackendUrl}${student.photo}`;
         }
+        if (student.school_logo && student.school_logo.startsWith("/")) {
+            student.school_logo = `${mainBackendUrl}${student.school_logo}`;
+        }
+
+        // Add human readable standard and computed academic year/validity
+        const validity = getAcademicValidity();
+        student.standard = student.division_name
+            ? `${student.class_name || ''} - ${student.division_name}`
+            : (student.class_name || '');
+        student.academic_year = validity.academic_year;
+        student.academic_year_full = validity.academic_year_full;
+        student.valid_until = validity.valid_until;
+        student.valid_until_iso = validity.valid_until_iso;
 
         // Construct base URL from frontend env or fallback
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -90,12 +126,12 @@ exports.getStudentByQr = async (req, res) => {
               sf.father_name, sf.mother_name, sf.school_id, sf.roll_number, sf.status, sf.id_number, 
               sf.gr_number, sf.father_phone, sf.mother_phone, sf.form_token,
               sf.street_address, sf.city, sf.state, sf.pin_code,
-              d.division_name, c.class_name,
+              d.division_name, COALESCE(d.class_name, c.class_name) AS class_name,
               s.school_name, s.logo AS school_logo, s.address AS school_address, s.state AS school_state
              FROM student_forms sf
              LEFT JOIN schools s ON sf.school_id = s.id
              LEFT JOIN divisions d ON sf.division_id = d.id
-             LEFT JOIN classes c ON d.class_id = c.id
+             LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
              WHERE sf.form_token = :token AND sf.status = 'approved'`,
             {
                 replacements: { token: form_token },
@@ -123,6 +159,11 @@ exports.getStudentByQr = async (req, res) => {
             schoolLogoUrl = `${mainBackendUrl}${schoolLogoUrl}`;
         }
 
+        const validity = getAcademicValidity();
+        const formattedStandard = student.division_name
+            ? `${student.class_name || ''} - ${student.division_name}`
+            : (student.class_name || '');
+
         // Filter sensitive data - only return fields necessary for verification
         const publicData = {
             id: student.id,
@@ -134,7 +175,12 @@ exports.getStudentByQr = async (req, res) => {
             address: `${student.street_address || ''}, ${student.city || ''}, ${student.state || ''} - ${student.pin_code || ''}`.replace(/^, |, $/, ''),
             school_id: student.school_id,
             class_name: student.class_name,
+            standard: formattedStandard,
             division_name: student.division_name,
+            academic_year: validity.academic_year,
+            academic_year_full: validity.academic_year_full,
+            valid_until: validity.valid_until,
+            valid_until_iso: validity.valid_until_iso,
             roll_number: student.roll_number,
             id_number: student.id_number,
             gr_number: student.gr_number,

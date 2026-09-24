@@ -37,7 +37,7 @@ app.use("/uploads", (req, res, next) => {
   // Define this path in your .env file on the live server. Default is the local relative path.
   const idcrmUploadsFolder = process.env.IDCRM_UPLOADS_PATH || path.join(__dirname, "../backend/uploads");
   const idcrmPath = path.join(idcrmUploadsFolder, filePath);
-  
+
   if (fs.existsSync(idcrmPath) && fs.statSync(idcrmPath).isFile()) {
     return res.sendFile(idcrmPath);
   }
@@ -152,7 +152,7 @@ async function ensureParentAccountSchema() {
       console.log("✅ Parent account schema ready");
     }
   } catch (error) {
-    console.warn("⚠️ Parent account schema ensure skipped:", error.message);
+    console.warn("⚠️ Parent account schema ensure skipped:", error.original?.message || error.message || error);
   }
 }
 

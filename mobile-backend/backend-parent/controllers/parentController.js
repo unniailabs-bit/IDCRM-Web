@@ -245,11 +245,11 @@ exports.getParentDashboard = async (req, res) => {
     const parentData = await sequelize.query(
       `SELECT 
         sf.*, 
-        c.class_name, 
+        COALESCE(d.class_name, c.class_name) AS class_name, 
         d.division_name
        FROM student_forms sf
-       LEFT JOIN classes c ON sf.class_id = c.id
        LEFT JOIN divisions d ON sf.division_id = d.id
+       LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
        WHERE sf.id = :parentId`,
       { replacements: { parentId }, type: QueryTypes.SELECT },
     );

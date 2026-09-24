@@ -40,7 +40,8 @@ if (isCloudSQL) {
     process.env.DB_PASS,
     {
       ...sequelizeConfig,
-      host: process.env.DB_HOST || 'localhost'
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT) || 5432
     }
   );
 }
@@ -53,7 +54,7 @@ if (isCloudSQL) {
       console.log('📡 Connected via Cloud SQL Unix socket');
     }
   } catch (error) {
-    console.error('❌ Database connection failed:', error.message);
+    console.error('❌ Database connection failed:', error.original?.message || error.message || error);
   }
 })();
 

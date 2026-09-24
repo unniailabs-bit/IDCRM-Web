@@ -172,13 +172,13 @@ async function fetchStudentOptionsByIds(studentIds) {
             sf.class_id,
             sf.division_id,
             sf.school_id,
-            c.class_name,
+            COALESCE(d.class_name, c.class_name) AS class_name,
             d.division_name,
             s.school_name,
             s.logo AS school_logo
         FROM student_forms sf
-        LEFT JOIN classes c ON sf.class_id = c.id
         LEFT JOIN divisions d ON sf.division_id = d.id
+        LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
         LEFT JOIN schools s ON sf.school_id = s.id
         WHERE sf.id IN (:studentIds)
         ORDER BY sf.first_name ASC, sf.last_name ASC, sf.id ASC
@@ -300,6 +300,46 @@ async function ensureLinksForStudents(parentAccountId, students) {
     }
 }
 
+async function linkUnlinkedStudentsForAccount(parentAccount) {
+    if (!(await parentAccountsTableExists()) || !parentAccount?.id) return;
+
+    const normalizedPhone = normalizePhone(parentAccount.phone);
+    const email = parentAccount.email ? normalizeEmail(parentAccount.email) : null;
+
+    if (!normalizedPhone && !email) return;
+
+    let whereClause = [];
+    const replacements = { parentAccountId: parentAccount.id };
+
+    if (normalizedPhone) {
+        whereClause.push(`${phoneSqlExpr("sf.father_phone")} = :phone`);
+        whereClause.push(`${phoneSqlExpr("sf.mother_phone")} = :phone`);
+        replacements.phone = normalizedPhone;
+    }
+    if (email) {
+        whereClause.push(`(sf.father_email IS NOT NULL AND LOWER(sf.father_email) = :email)`);
+        replacements.email = email;
+    }
+
+    await sequelize.query(
+        `
+        INSERT INTO parent_student_links (parent_account_id, student_form_id, relationship, is_primary)
+        SELECT :parentAccountId, sf.id, 'father', false
+        FROM student_forms sf
+        WHERE (${whereClause.join(" OR ")})
+          AND sf.id NOT IN (
+              SELECT student_form_id FROM parent_student_links WHERE parent_account_id = :parentAccountId
+          )
+        ON CONFLICT (parent_account_id, student_form_id) DO NOTHING
+        `,
+        { replacements, type: QueryTypes.INSERT }
+    );
+
+    if (parentAccount.password) {
+        await syncParentPasswordToLinkedStudents(parentAccount.id, parentAccount.password);
+    }
+}
+
 async function authenticateParent(phone, password) {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
@@ -314,7 +354,7 @@ async function authenticateParent(phone, password) {
         return { parentAccount: null, students: legacyStudents };
     }
 
-    const [parentAccount] = await sequelize.query(
+    let [parentAccount] = await sequelize.query(
         `
         SELECT * FROM parent_accounts
         WHERE ${phoneSqlExpr("phone")} = :phone
@@ -324,10 +364,26 @@ async function authenticateParent(phone, password) {
     );
 
     if (parentAccount) {
-        const accountPasswordOk = await passwordMatches(password, parentAccount.password);
+        let accountPasswordOk = await passwordMatches(password, parentAccount.password);
+
+        if (!accountPasswordOk) {
+            const legacyCandidates = await findLegacyMatchedStudentsByPhone(normalizedPhone, password);
+            if (legacyCandidates.length > 0) {
+                const hashed = await hashPasswordIfNeeded(password);
+                await sequelize.query(
+                    `UPDATE parent_accounts SET password = :password, updated_at = NOW() WHERE id = :id`,
+                    { replacements: { password: hashed, id: parentAccount.id }, type: QueryTypes.UPDATE }
+                );
+                parentAccount.password = hashed;
+                accountPasswordOk = true;
+            }
+        }
+
         if (!accountPasswordOk) {
             return { parentAccount: null, students: [] };
         }
+
+        await linkUnlinkedStudentsForAccount(parentAccount);
 
         const linkedStudents = await sequelize.query(
             `
@@ -343,9 +399,7 @@ async function authenticateParent(phone, password) {
             },
         );
 
-        if (linkedStudents.length > 0) {
-            return { parentAccount, students: linkedStudents };
-        }
+        return { parentAccount, students: linkedStudents };
     }
 
     const legacyStudents = await findLegacyMatchedStudentsByPhone(
@@ -356,33 +410,54 @@ async function authenticateParent(phone, password) {
         return { parentAccount: null, students: [] };
     }
 
-    const account =
-        parentAccount ||
-        (await ensureParentAccountForPhone(
-            normalizedPhone,
-            password,
-            legacyStudents[0],
-        ));
-    await ensureLinksForStudents(account.id, legacyStudents);
+    const account = await ensureParentAccountForPhone(
+        normalizedPhone,
+        password,
+        legacyStudents[0],
+    );
 
-    if (!parentAccount && account) {
+    if (account) {
         const hashed = await hashPasswordIfNeeded(password);
         if (hashed && !account.password) {
             await sequelize.query(
                 `UPDATE parent_accounts SET password = :password, updated_at = NOW() WHERE id = :id`,
-                {
-                    replacements: { password: hashed, id: account.id },
-                    type: QueryTypes.UPDATE,
-                },
+                { replacements: { password: hashed, id: account.id }, type: QueryTypes.UPDATE },
             );
+            account.password = hashed;
         }
+        await linkUnlinkedStudentsForAccount(account);
+
+        const linkedStudents = await sequelize.query(
+            `
+            SELECT sf.*
+            FROM parent_student_links psl
+            JOIN student_forms sf ON sf.id = psl.student_form_id
+            WHERE psl.parent_account_id = :parentAccountId
+            ORDER BY sf.first_name ASC, sf.last_name ASC, sf.id ASC
+            `,
+            {
+                replacements: { parentAccountId: account.id },
+                type: QueryTypes.SELECT,
+            },
+        );
+        return { parentAccount: account, students: linkedStudents.length > 0 ? linkedStudents : legacyStudents };
     }
 
-    return { parentAccount: account, students: legacyStudents };
+    return { parentAccount: null, students: legacyStudents };
 }
 
 async function getLinkedStudentsForAccount(parentAccountId) {
     if (!(await parentAccountsTableExists()) || !parentAccountId) return [];
+
+    const [parentAccount] = await sequelize.query(
+        `SELECT * FROM parent_accounts WHERE id = :parentAccountId LIMIT 1`,
+        { replacements: { parentAccountId }, type: QueryTypes.SELECT }
+    );
+
+    if (parentAccount) {
+        await linkUnlinkedStudentsForAccount(parentAccount);
+    }
+
     const rows = await sequelize.query(
         `
         SELECT
@@ -394,14 +469,14 @@ async function getLinkedStudentsForAccount(parentAccountId) {
             sf.class_id,
             sf.division_id,
             sf.school_id,
-            c.class_name,
+            COALESCE(d.class_name, c.class_name) AS class_name,
             d.division_name,
             s.school_name,
             s.logo AS school_logo
         FROM parent_student_links psl
         JOIN student_forms sf ON sf.id = psl.student_form_id
-        LEFT JOIN classes c ON sf.class_id = c.id
         LEFT JOIN divisions d ON sf.division_id = d.id
+        LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
         LEFT JOIN schools s ON sf.school_id = s.id
         WHERE psl.parent_account_id = :parentAccountId
         ORDER BY sf.first_name ASC, sf.last_name ASC, sf.id ASC
@@ -429,7 +504,21 @@ async function studentLinkedToParent(parentAccountId, studentId) {
             type: QueryTypes.SELECT,
         },
     );
-    return Boolean(row);
+    if (row) return true;
+
+    const [parentAccount] = await sequelize.query(
+        `SELECT * FROM parent_accounts WHERE id = :parentAccountId LIMIT 1`,
+        { replacements: { parentAccountId }, type: QueryTypes.SELECT }
+    );
+    if (parentAccount) {
+        await linkUnlinkedStudentsForAccount(parentAccount);
+        const [checkAgain] = await sequelize.query(
+            `SELECT 1 FROM parent_student_links WHERE parent_account_id = :parentAccountId AND student_form_id = :studentId LIMIT 1`,
+            { replacements: { parentAccountId, studentId }, type: QueryTypes.SELECT }
+        );
+        return Boolean(checkAgain);
+    }
+    return false;
 }
 
 async function getStudentById(studentId) {
@@ -508,4 +597,5 @@ module.exports = {
     migratePlainStudentPassword,
     syncParentPasswordToLinkedStudents,
     ensureLinksForStudents,
+    linkUnlinkedStudentsForAccount,
 };

@@ -32,19 +32,46 @@ async function hashPasswordIfNeeded(password) {
  * Link a student_forms row to a parent account (creates account if needed).
  * Safe to call multiple times for the same student.
  */
+function normalizePhone(phone) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  return digits.slice(-10);
+}
+
+function phoneSqlExpr(column) {
+  return `RIGHT(REGEXP_REPLACE(COALESCE(${column}, ''), '[^0-9]', '', 'g'), 10)`;
+}
+
+/**
+ * Link a student_forms row to a parent account (creates account if needed).
+ * Safe to call multiple times for the same student.
+ */
 async function linkStudentToParentAccount(student, transaction = null) {
   if (!(await parentAccountsTableExists())) return null;
-  if (!student?.id || !student?.father_email) return null;
+  if (!student?.id) return null;
 
-  const email = normalizeEmail(student.father_email);
-  if (!email) return null;
+  const email = student.father_email ? normalizeEmail(student.father_email) : null;
+  const phone = normalizePhone(student.father_phone || student.mother_phone);
+
+  if (!email && !phone) return null;
 
   const queryOpts = transaction ? { transaction } : {};
 
-  const [existingAccount] = await sequelize.query(
-    `SELECT id FROM parent_accounts WHERE LOWER(email) = :email LIMIT 1`,
-    { replacements: { email }, type: QueryTypes.SELECT, ...queryOpts },
-  );
+  let existingAccount = null;
+  if (phone) {
+    const [row] = await sequelize.query(
+      `SELECT id FROM parent_accounts WHERE ${phoneSqlExpr("phone")} = :phone LIMIT 1`,
+      { replacements: { phone }, type: QueryTypes.SELECT, ...queryOpts }
+    );
+    existingAccount = row;
+  }
+  if (!existingAccount && email) {
+    const [row] = await sequelize.query(
+      `SELECT id FROM parent_accounts WHERE LOWER(email) = :email LIMIT 1`,
+      { replacements: { email }, type: QueryTypes.SELECT, ...queryOpts }
+    );
+    existingAccount = row;
+  }
 
   let parentAccountId = existingAccount?.id;
 
@@ -60,14 +87,19 @@ async function linkStudentToParentAccount(student, transaction = null) {
         replacements: {
           email,
           password: hashed,
-          name: student.father_name || null,
-          phone: student.father_phone || null,
+          name: student.father_name || student.mother_name || null,
+          phone: phone || null,
         },
         type: QueryTypes.INSERT,
         ...queryOpts,
       },
     );
     parentAccountId = inserted[0]?.id;
+  } else if (phone) {
+    await sequelize.query(
+      `UPDATE parent_accounts SET phone = :phone, updated_at = NOW() WHERE id = :id AND (phone IS NULL OR phone = '')`,
+      { replacements: { phone, id: parentAccountId }, type: QueryTypes.UPDATE, ...queryOpts }
+    );
   }
 
   if (!parentAccountId) return null;

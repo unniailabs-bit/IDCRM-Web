@@ -26,6 +26,7 @@ const {
   migratePlainStudentPassword,
   syncParentPasswordToLinkedStudents,
   parentAccountsTableExists,
+  linkUnlinkedStudentsForAccount,
 } = parentAccountService;
 
 const fs = require("fs");
@@ -569,6 +570,8 @@ exports.verifyOtpAndResetPassword = async (req, res) => {
             type: QueryTypes.UPDATE,
           },
         );
+        parentAccount.password = hashed;
+        await linkUnlinkedStudentsForAccount(parentAccount);
         await syncParentPasswordToLinkedStudents(parentAccount.id, hashed);
         return res.json({
           success: true,
