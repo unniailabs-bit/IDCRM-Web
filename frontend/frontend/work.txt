@@ -1,0 +1,42 @@
+ 1.
+http://localhost:5000/api/trust/credit-summary
+ //method [get]
+
+2.  body:-
+
+
+
+
+
+
+
+
+
+
+3. response :-
+{
+    "success": true,
+    "message": "✅ Trust credit summary fetched successfully",
+    "data": {
+        "trust_id": 1,
+        "current_credit": 59458,
+        "total_received": 31500,
+        "total_edited": 35000,
+        "total_used": 2042,
+        "remaining_credit": 59458,
+        "school_usage": [
+            {
+                "school_id": 1,
+                "total_used": "2040"
+            },
+            {
+                "school_id": 8,
+                "total_used": "2"
+            }
+        ]
+    }
+}
+
+use:-frontend\src\api\axiosInstance.ts
+use :-api/trust
+

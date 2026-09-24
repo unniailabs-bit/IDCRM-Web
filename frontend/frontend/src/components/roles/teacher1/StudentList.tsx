@@ -1,0 +1,270 @@
+import React, { useState } from "react";
+import { Search, Filter, Send, ChevronDown, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+const StudentList = () => {
+  const navigate = useNavigate();
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [searchText, setSearchText] = useState("");
+
+  const [studentRows, setStudentRows] = useState([
+    {
+      roll: "101",
+      name: "John Doe",
+      gender: "Male",
+      parent: "Jane Doe",
+      phone: "1234567890",
+      email: "parent@example.com",
+      status: "Not Sent",
+    },
+    {
+      roll: "102",
+      name: "Sarah Smith",
+      gender: "Female",
+      parent: "Robert Smith",
+      phone: "0987654321",
+      email: "robert@example.com",
+      status: "Not Sent",
+    },
+  ]);
+
+  const [newRow, setNewRow] = useState(null);
+
+  const goToImportStudents = () => {
+    navigate("/teacher-dashboard/importstudents");
+  };
+
+  // 🔍 SEARCH + STATUS FILTER ⭐⭐ (UPDATED)
+  const filteredStudents = studentRows.filter((s) => {
+    const searchLower = searchText.toLowerCase();
+
+    const matchesSearch =
+      s.roll.toLowerCase().includes(searchLower) ||
+      s.name.toLowerCase().includes(searchLower) ||
+      s.parent.toLowerCase().includes(searchLower);
+
+    const matchesStatus =
+      selectedStatus === "All Status" || s.status === selectedStatus;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // ➕ ADD NEW ROW
+  const addNewRow = () => {
+    setNewRow({
+      roll: "",
+      name: "",
+      gender: "",
+      parent: "",
+      phone: "",
+      email: "",
+      status: "Not Sent",
+    });
+  };
+
+  // ✔ SAVE NEW ROW
+  const saveNewRow = () => {
+    setStudentRows([...studentRows, newRow]);
+    setNewRow(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6 mt-8 mb-10">
+
+      {/* Title */}
+      <h1 className="text-2xl font-semibold">Student List</h1>
+      <p className="text-gray-600 mt-1">Class A, Division 2</p>
+
+      {/* Import Button */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={goToImportStudents}
+          className="flex items-center gap-2 border border-gray-300 px-4 py-2 rounded-lg bg-white hover:bg-gray-100 shadow-sm text-sm"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18V6m0 0l-6 6m6-6l6 6" />
+          </svg>
+          Import More Students
+        </button>
+      </div><br></br>
+
+      {/* Top Cards */}
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white border p-5 rounded-xl shadow-sm">
+          <p className="text-sm text-gray-500">Total Students</p>
+          <h2 className="text-3xl font-bold mt-2 text-gray-700">{studentRows.length}</h2>
+        </div>
+
+        <div className="bg-white border p-5 rounded-xl shadow-sm">
+          <p className="text-sm text-gray-500">Not Sent</p>
+          <h2 className="text-3xl font-bold mt-2 text-gray-700">
+            {studentRows.filter((s) => s.status === "Not Sent").length}
+          </h2>
+        </div>
+
+        <div className="bg-white border p-5 rounded-xl shadow-sm">
+          <p className="text-sm text-blue-600">Sent</p>
+          <h2 className="text-3xl font-bold mt-2 text-blue-600">
+            {studentRows.filter((s) => s.status === "Sent").length}
+          </h2>
+        </div>
+
+        <div className="bg-white border p-5 rounded-xl shadow-sm">
+          <p className="text-sm text-green-600">Submitted</p>
+          <h2 className="text-3xl font-bold mt-2 text-green-600">
+            {studentRows.filter((s) => s.status === "Submitted").length}
+          </h2>
+        </div>
+      </div><br></br>
+
+      {/* Search + Filter */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 mt-8 relative">
+
+        {/* Search Box */}
+        <div className="flex items-center bg-white border px-3 py-2 rounded-md w-full">
+          <Search className="h-5 w-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by student name, roll no., or parent name…"
+            className="ml-2 w-full outline-none"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+        </div>
+
+        {/* Status Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setStatusOpen(!statusOpen)}
+            className="flex items-center justify-between gap-2 border border-gray-300 
+               bg-white rounded-xl px-4 h-12 w-40 shadow-sm text-gray-700
+               transition-none active:scale-100 focus:scale-100"
+          >
+            <div className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-gray-600" />
+              {selectedStatus}
+            </div>
+            <ChevronDown className="h-5 w-5 text-gray-600" />
+          </button>
+
+          {statusOpen && (
+            <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-10">
+              {["All Status", "Not Sent", "Sent", "Submitted"].map((status) => (
+                <div
+                  key={status}
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => {
+                    setSelectedStatus(status);
+                    setStatusOpen(false);
+                  }}
+                >
+                  {status}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="mt-6 bg-white rounded-xl shadow-sm overflow-hidden">
+        <table className="w-full text-left table-fixed">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-3 w-[80px]">Roll No</th>
+              <th className="p-3 w-[160px]">Student Name</th>
+              <th className="p-3 w-[90px]">Gender</th>
+              <th className="p-3 w-[160px]">Parent Name</th>
+              <th className="p-3 w-[120px]">Phone</th>
+              <th className="p-3 w-[180px]">Email</th>
+              <th className="p-3">Status</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {/* Existing Rows */}
+            {filteredStudents.map((s, index) => (
+              <tr key={index} className="border-b">
+                <td className="p-3">{s.roll}</td>
+                <td className="p-3 w-[160px]">
+                  <span className="block truncate" title={s.name}>
+                    {s.name}
+                  </span>
+                </td>
+                <td className="p-3">{s.gender}</td>
+                <td className="p-3 w-[160px]">
+                  <span className="block truncate" title={s.parent}>
+                    {s.parent}
+                  </span>
+                </td>
+                <td className="p-3">{s.phone}</td>
+                <td className="p-3 w-[180px]">
+                  <span className="block truncate" title={s.email}>
+                    {s.email}
+                  </span>
+                </td>
+                <td className="p-3">
+                  <span className="px-3 py-1 text-xs rounded-full bg-gray-200">
+                    {s.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+
+            {/* New Editable Row */}
+            {newRow && (
+              <tr className="bg-gray-50">
+                {["roll", "name", "gender", "parent", "phone", "email"].map((field) => (
+                  <td className="p-3" key={field}>
+                    <input
+                      type="text"
+                      className="border p-2 rounded w-full"
+                      value={newRow[field]}
+                      onChange={(e) =>
+                        setNewRow({ ...newRow, [field]: e.target.value })
+                      }
+                    />
+                  </td>
+                ))}
+                <td className="p-3">Not Sent</td>
+                <td className="p-3">
+                  <button
+                    onClick={saveNewRow}
+                    className="bg-green-600 text-white px-4 py-2 rounded"
+                  >
+                    Save
+                  </button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Student Row Button */}
+      <div className="mt-4">
+        <button
+          onClick={addNewRow}
+          className="flex items-center gap-2 border px-4 py-2 rounded-md bg-white hover:bg-gray-100"
+        >
+          <Plus className="h-4 w-4" /> Add Student Row
+        </button>
+      </div>
+
+      <p className="text-sm text-gray-500 mt-3">
+        Showing {filteredStudents.length} of {studentRows.length} students
+      </p>
+
+    </div>
+  );
+};
+
+export default StudentList;

@@ -1,0 +1,50 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Build
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_TAG'
+      - '--build-arg'
+      - 'VITE_BACKEND_URL=$_VITE_BACKEND_URL'
+      - '-f'
+      - 'frontend/Dockerfile'
+      - 'frontend/'
+
+  # Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Push
+    args:
+      - 'push'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_TAG'
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: Deploy
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE_NAME'
+      - '--image'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_TAG'
+      - '--region'
+      - 'asia-south1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '80'
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_TAG'
+
+substitutions:
+  _SERVICE_NAME: 'idcrm-web'
+  _REPO_NAME: 'cloud-run-source-deploy'
+  _VITE_BACKEND_URL: 'https://idcrm-backend-909168107470.asia-south1.run.app'
+  _TAG: 'latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

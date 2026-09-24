@@ -1,0 +1,43 @@
+steps:
+  # 1. Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/asha-school-app-api', '.']
+
+  # 2. Push the image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/asha-school-app-api']
+
+  # 3. Sync uploads to GCS bucket
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [ -d "uploads" ]; then
+          gsutil -m rsync -r uploads gs://idcrm-app
+        fi
+        if [ -d "backend-teacher/uploads" ]; then
+          gsutil -m rsync -r backend-teacher/uploads gs://idcrm-app
+        fi
+
+  # 4. Deploy the image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'asha-school-app-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/asha-school-app-api'
+      - '--region'
+      - 'asia-south1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--execution-environment=gen2'
+      - '--add-volume=name=uploads,type=cloud-storage,bucket=idcrm-app'
+      - '--add-volume-mount=volume=uploads,mount-path=/app/uploads'
+      - '--add-volume-mount=volume=uploads,mount-path=/app/backend-teacher/uploads'
+
+images:
+  - 'gcr.io/$PROJECT_ID/asha-school-app-api'

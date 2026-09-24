@@ -1,0 +1,169 @@
+.id-card-wrapper {
+  background: #eee;
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h2 {
+  position: absolute;
+  right: 30px;
+  top: 10px;
+  font-size: 28px;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-align: center;
+  color: white;
+}
+
+.header h5 {
+  position: absolute;
+  right: 30px;
+  top: -5px;
+  font-size: 12px;
+  font-weight: 400;
+  color: white;
+}
+
+/* Logo */
+.logo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 100px;
+  height: 100px;
+}
+
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ID Card Container */
+.id-card {
+  position: relative;
+  width: 650px;
+  height: 400px;
+  margin: 40px auto;
+  background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 50%, #ffffff 100%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 650px 400px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+/* Photo */
+.photo {
+  position: absolute;
+  top: 120px;
+  right: 20px;
+  width: 179px;
+  border: 2px solid #ccc;
+  background: #fff;
+  overflow: hidden;
+  z-index: 10;
+}
+
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Photo placeholder if no image */
+.photo:empty::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.card-title {
+  position: absolute;
+  top: 120px;
+  left: 125px;
+  width: 300px;
+  max-width: calc(100% - 220px);
+  max-height: 180px;
+  z-index: 10;
+}
+
+.card-title img {
+  width: 100%;
+  height: 100%;
+  max-height: 180px;
+  display: block;
+  object-fit: contain;
+}
+
+/* Common Text Styling */
+.field {
+  position: absolute;
+  left: 25px;
+  font-size: 18px;
+  color: #0a3b2c;
+  font-weight: 500;
+  line-height: 1.2;
+  z-index: 10;
+  white-space: nowrap;
+  font-family: sans-serif;
+}
+
+label {
+  color: green;
+}
+
+.student-info {
+  position: absolute;
+  left: 40px;
+  top: 70px;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+/* Individual Positions */
+.name {
+  top: 95px;
+}
+
+.father {
+  top: 125px;
+}
+
+.mother {
+  top: 155px;
+}
+
+.class {
+  top: 185px;
+}
+
+.dob {
+  top: 215px;
+}
+
+.address {
+  top: 245px;
+}
+
+.phone {
+  top: 275px;
+}
+

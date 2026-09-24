@@ -1,0 +1,126 @@
+.home-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.home-container {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  max-width: 800px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.home-container h1 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 2.5em;
+}
+
+.home-container > p {
+  text-align: center;
+  color: #666;
+  margin-bottom: 40px;
+  font-size: 1.1em;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 30px;
+  margin-top: 30px;
+}
+
+.template-card {
+  text-decoration: none;
+  color: inherit;
+  background: #f8f9fa;
+  border-radius: 15px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  display: block;
+}
+
+.template-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border-color: #667eea;
+}
+
+.template-preview {
+  width: 100%;
+  height: 200px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid #ddd;
+}
+
+.template1-preview {
+  background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 50%, #ffffff 100%);
+  position: relative;
+}
+
+.template1-preview::before {
+  content: 'Template 1';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #1976d2;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.template2-preview {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+}
+
+.template2-preview::before {
+  content: 'Template 2';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.template3-preview {
+  background: linear-gradient(to bottom, #d32f2f 0%, #ffffff 50%, #ffffff 100%);
+  position: relative;
+}
+
+.template3-preview::before {
+  content: 'Template 3';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #d32f2f;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.template-card h2 {
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 1.5em;
+}
+
+.template-card p {
+  color: #666;
+  margin: 0;
+  font-size: 0.95em;
+}
+

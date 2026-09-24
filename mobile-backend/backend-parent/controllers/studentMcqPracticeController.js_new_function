@@ -1,0 +1,55 @@
+
+// -----------------------------
+// Get MCQs grouped by Material
+// -----------------------------
+exports.getMaterialWiseMcqs = async (req, res) => {
+  try {
+    const { id: student_id, class_id, division_id, school_id } = req.student;
+
+    const query = `
+      SELECT 
+        m.id AS material_id,
+        m.title AS material_title,
+        m.material_type,
+        COUNT(q.id)::int AS total_mcqs,
+        0 AS attempted,         
+        '0.00' AS avg_accuracy, 
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', q.id,
+              'question', q.question,
+              'option_a', q.option_a,
+              'option_b', q.option_b,
+              'option_c', q.option_c,
+              'option_d', q.option_d,
+              'correct_answer', q.correct_answer,
+              'explanation', q.explanation
+            ) ORDER BY q.id ASC
+          ) FILTER (WHERE q.id IS NOT NULL),
+          '[]'
+        ) AS mcqs
+      FROM materials m
+      LEFT JOIN mcq_questions q ON q.material_id = m.id AND q.is_active = true
+      WHERE m.class_id = :class_id 
+        AND m.division_id = :division_id 
+        AND m.school_id = :school_id
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+    `;
+
+    const materials = await sequelize.query(query, {
+      replacements: { class_id, division_id, school_id },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    return res.json({
+      success: true,
+      data: materials
+    });
+
+  } catch (error) {
+    console.error("Get Material Wise MCQs Error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

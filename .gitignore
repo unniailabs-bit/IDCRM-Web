@@ -1,0 +1,7 @@
+# Local service-account credentials
+**/config/serviceAccountKey.json
+
+# Local environment files
+**/.env
+**/.env.*
+!**/.env.example

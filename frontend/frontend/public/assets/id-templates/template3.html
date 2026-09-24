@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>School ID Card</title>
+    <style>
+        body {
+  background: #e5e5e5;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Card */
+.id-card {
+  position: relative;
+  width: 360px;
+  height: 620px;
+  margin: 40px auto;
+  background-color: white;
+  background-size: cover;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.25);
+}
+
+/* Header */
+.header {
+  background-color: #d32f2f;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  padding: 10px 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.header-small {
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: #fff;
+}
+
+.header-main {
+  position: absolute;
+  top: 30px;
+  width: 100%;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.header-address {
+    position: absolute;
+    top: 60px;
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    color: #fff;
+    padding: 0 10px;
+    line-height: 28px;
+}
+
+.header-address span {
+  color: yellow;
+  font-weight: bold;
+}
+
+/* Logo */
+.logo {
+    position: absolute;
+    top: 180px;
+    left: 35px;
+    width: 70px;
+}
+
+/* Academic Year */
+.year {
+  position: absolute;
+  top: 200px;
+  right: 25px;
+  transform: rotate(90deg);
+  font-weight: bold;
+  color: purple;
+}
+
+/* Photo */
+.photo {
+  position: absolute;
+  top: 150px;
+  left: 120px;
+  width: 120px;
+  height: 120px;
+  border: 2px solid #777;
+  background: #fff;
+}
+
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Roll */
+.roll {
+  position: absolute;
+  top: 280px;
+  width: 100%;
+  text-align: center;
+  font-size: 20px;
+  color: purple;
+  font-weight: bold;
+}
+
+/* Name */
+.name {
+  position: absolute;
+  top: 320px;
+  width: 100%;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #7b2cbf;
+}
+
+/* Details */
+.details {
+    position: absolute;
+    top: 360px;
+    left: 30px;
+    width: 459px;
+    font-size: 16px;
+    line-height: 22px;
+}
+
+.details div {
+  margin-bottom: 8px;
+}
+
+.details span {
+  color: red;
+  font-weight: bold;
+}
+
+/* Signature */
+.sign {
+  position: absolute;
+  bottom: 55px;
+  left: 30px;
+  width: 90px;
+}
+
+.designation {
+  position: absolute;
+  bottom: 30px;
+  left: 30px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+    </style>
+</head>
+<body>
+
+<div class="id-card">
+  <!-- Header Section with Red Background -->
+  <div class="header">
+    <div class="header-small">Shree Shyam Education Trust</div>
+    <div class="header-main">SHIVAJI VIDYA MANDIR HIGH SCHOOL</div>
+    <div class="header-address">
+      Appa Pada, Malad (East), Mumbai - 97<br>
+      <span>MEDIUM - SEMI ENGLISH</span>
+    </div>
+  </div>
+  <!-- Logo -->
+  <img src="logo.png" class="logo" alt="School Logo">
+
+  <!-- Academic Year -->
+  <div class="year">2024 - 25</div>
+
+  <!-- Photo -->
+  <div class="photo">
+    <img src="./pic.jpeg" alt="Student Photo">
+  </div>
+
+  <!-- Roll / ID -->
+  <div class="roll">123303</div>
+
+  <!-- Name -->
+  <div class="name">SINGH UTKARSH DEVIPRASAD</div>
+
+  <!-- Details -->
+  <div class="details">
+    <div><span>Std.</span> : 10th - A</div>
+    <div><span>D.O.B.</span> : 18.1.2009</div>
+    <div><span>Add.</span> : Navjeevan Chawl,<br>
+      Appapada, Malad (E), Mum - 97
+    </div>
+    <div><span>Mob.No.</span> : 9920767317</div>
+  </div>
+
+  <!-- Signature -->
+  <img src="sign.png" class="sign" alt="Signature">
+  <div class="designation">Head Master</div>
+
+</div>
+
+</body>
+</html>

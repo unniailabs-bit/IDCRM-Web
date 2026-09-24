@@ -1,0 +1,26 @@
+steps:
+  # --- BACKEND SECTION ---
+  # 1. Build and Push Backend Image
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker build -t gcr.io/$PROJECT_ID/idcrm-backend .
+        docker push gcr.io/$PROJECT_ID/idcrm-backend
+    id: 'build-push-backend'
+
+  # 2. Deploy Backend to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run deploy idcrm-backend \
+          --image gcr.io/$PROJECT_ID/idcrm-backend \
+          --region asia-south1 \
+          --platform managed \
+          --allow-unauthenticated \
+          --port 5000
+    id: 'deploy-backend'
+    waitFor: ['build-push-backend']
