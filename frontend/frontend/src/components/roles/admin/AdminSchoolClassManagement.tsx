@@ -228,7 +228,7 @@ export function AdminSchoolClassManagement() {
   };
 
   const handleAddDivision = async () => {
-    if (!divisionName.trim() || !expectedStudents || !selectedClass || !schoolId) {
+    if (!divisionName.trim() || !selectedClass || !schoolId) {
       toast.error(t('classManagement.fillAllFields'));
       return;
     }
@@ -605,7 +605,6 @@ export function AdminSchoolClassManagement() {
                         <TableRow>
                           <TableHead>{t('classManagement.division')}</TableHead>
                           <TableHead>{t('classManagement.classTeacher')}</TableHead>
-                          <TableHead>{t('classManagement.expectedStudents')}</TableHead>
                           <TableHead className="text-right">{t('classManagement.actions')}</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -658,24 +657,6 @@ export function AdminSchoolClassManagement() {
                                 </Select>
                               ) : (
                                 division.class_teacher || t('classManagement.notAssigned')
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {editingDivisionId === division.id ? (
-                                <Input
-                                  type="number"
-                                  value={editDivisionData.expected_students || ''}
-                                  onChange={(e) =>
-                                    setEditDivisionData({
-                                      ...editDivisionData,
-                                      expected_students: parseInt(e.target.value) || 0,
-                                    })
-                                  }
-                                  className="h-8 w-24"
-                                  min="1"
-                                />
-                              ) : (
-                                division.expected_students
                               )}
                             </TableCell>
                             <TableCell className="text-right">
@@ -798,17 +779,6 @@ export function AdminSchoolClassManagement() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>{t('classManagement.expectedStudents')}</Label>
-              <Input
-                type="number"
-                value={expectedStudents}
-                onChange={(e) => setExpectedStudents(e.target.value)}
-                placeholder={t('classManagement.enterStudents')}
-                className="mt-1"
-                min="1"
-              />
-            </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setIsDivisionDialogOpen(false)}>
@@ -816,7 +786,7 @@ export function AdminSchoolClassManagement() {
             </Button>
             <Button
               onClick={handleAddDivision}
-              disabled={!divisionName.trim() || !expectedStudents}
+              disabled={!divisionName.trim()}
             >
               {t('classManagement.addDivision')}
             </Button>

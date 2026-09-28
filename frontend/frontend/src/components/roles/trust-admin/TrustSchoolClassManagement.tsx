@@ -247,7 +247,6 @@ export function TrustSchoolClassManagement() {
                       <TableRow>
                         <TableHead>{t('trustClassManagement.divisionHeader')}</TableHead>
                         <TableHead>{t('trustClassManagement.classTeacherHeader')}</TableHead>
-                        <TableHead>{t('trustClassManagement.expectedStudentsHeader')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -255,7 +254,6 @@ export function TrustSchoolClassManagement() {
                         <TableRow key={division.id}>
                           <TableCell className="font-medium">{division.division_name}</TableCell>
                           <TableCell>{division.class_teacher || t('trustClassManagement.notAssigned')}</TableCell>
-                          <TableCell>{division.expected_students || 0}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -334,17 +332,6 @@ export function TrustSchoolClassManagement() {
                     ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expected-students">{t('trustClassManagement.expectedStudentsLabel')}</Label>
-              <Input
-                id="expected-students"
-                type="number"
-                value={expectedStudents}
-                onChange={(e) => setExpectedStudents(e.target.value)}
-                placeholder="0"
-                min="0"
-              />
             </div>
           </div>
           <div className="flex justify-end gap-3">

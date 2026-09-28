@@ -128,7 +128,7 @@ export function ClassManagement() {
       setLoadingTeachers(true); // Start loading teachers
       try {
         const classesResponse = await classService.getClassesBySchool(userData.id);
-        const studentsResponse = await studentService.getStudentsBySchool(userData.id);
+        const studentsResponse = await studentService.getPublicStudents(userData.id);
         const teachersResponse = await teachersApi.getAll(userData.id); // Fetch teachers
 
         // Extract school section from classes response (if available)
@@ -139,17 +139,27 @@ export function ClassManagement() {
           }
         }
 
+        // getPublicStudents returns array directly or { success, data: [] }
+        const rawStudentsData = Array.isArray(studentsResponse)
+          ? studentsResponse
+          : Array.isArray(studentsResponse?.data)
+            ? studentsResponse.data
+            : [];
+
         if (
           classesResponse.success &&
           Array.isArray(classesResponse.data) &&
-          studentsResponse.success &&
-          Array.isArray(studentsResponse.data) &&
           teachersResponse.success &&
           Array.isArray(teachersResponse.data)
         ) {
-          // Check teachers response as well
-
-          const allStudents: Student[] = studentsResponse.data;
+          const allStudents: Student[] = rawStudentsData.map((s: any, idx: number) => ({
+            ...s,
+            name: s.student_name || s.name || '',
+            id: s.id || s.student_id || `${s.roll_number || 'std'}-${idx}`,
+            class_name: (s.class_name || s.className || s.Class || '').toString().trim(),
+            division_name: (s.division_name || s.division || s.Division || '').toString().trim(),
+            roll_number: s.roll_number || s['Roll No'] || s.rollNo || '',
+          }));
           setStudents(allStudents);
           setTeachersList(teachersResponse.data); // Set teachers list
 
@@ -165,10 +175,12 @@ export function ClassManagement() {
               );
 
               const divisionsWithStudents: Division[] = uniqueDivisions.map((div: Division) => {
+                const clsNameLower = (cls.class_name || '').trim().toLowerCase();
+                const divNameLower = (div.division_name || '').trim().toLowerCase();
                 const studentsInDivision = allStudents.filter((student) => {
                   return (
-                    student.class_name === cls.class_name &&
-                    student.division_name === div.division_name
+                    (student.class_name || '').trim().toLowerCase() === clsNameLower &&
+                    (student.division_name || '').trim().toLowerCase() === divNameLower
                   );
                 });
                 return { ...div, students: studentsInDivision };
@@ -194,6 +206,12 @@ export function ClassManagement() {
               });
             }
           }
+          classesWithDivisionsAndStudents.sort((a, b) =>
+            (a.class_name || '').localeCompare(b.class_name || '', undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
+          );
           setClasses(classesWithDivisionsAndStudents);
         } else {
           setClassesError(t('classManagement.messages.fetchDataError'));
@@ -235,11 +253,6 @@ export function ClassManagement() {
 
     if (!classTeacher) {
       errors.classTeacher = t('classManagement.validation.classTeacherRequired');
-      hasError = true;
-    }
-
-    if (!expectedStudents) {
-      errors.expectedStudents = t('classManagement.validation.expectedStudentsRequired');
       hasError = true;
     }
 
@@ -288,7 +301,7 @@ export function ClassManagement() {
         division_name: divisionName.trim(),
         class_teacher: classTeacher,
         teacher_id: selectedTeacher ? selectedTeacher.id : null,
-        expected_students: parseInt(expectedStudents, 10),
+        expected_students: expectedStudents ? parseInt(expectedStudents, 10) : 0,
       });
       setIsDivisionDialogOpen(false);
       setDivisionName('');
@@ -803,19 +816,6 @@ export function ClassManagement() {
               )}
               {divisionFormErrors.classTeacher && (
                 <p className="text-sm text-red-500">{divisionFormErrors.classTeacher}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="student-count">{t('classManagement.expectedStudentsLabel')}</Label>
-              <Input
-                id="student-count"
-                type="number"
-                placeholder="45"
-                value={expectedStudents}
-                onChange={(e) => setExpectedStudents(e.target.value)}
-              />
-              {divisionFormErrors.expectedStudents && (
-                <p className="text-sm text-red-500">{divisionFormErrors.expectedStudents}</p>
               )}
             </div>
 
