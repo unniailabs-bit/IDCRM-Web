@@ -6,7 +6,7 @@ const getSchoolDashboardOverview = async (req, res) => {
   try {
     // School admin's school_id is in req.user.school_id
     const schoolId = req.user?.school_id;
-    
+
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: School ID missing' });
     }
@@ -98,7 +98,7 @@ const getSchoolDashboardOverview = async (req, res) => {
 const getClasswiseIdStatus = async (req, res) => {
   try {
     const schoolId = req.user?.school_id;
-    
+
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: School ID missing' });
     }
@@ -137,7 +137,7 @@ const getClasswiseIdStatus = async (req, res) => {
 const getQuickStats = async (req, res) => {
   try {
     const schoolId = req.user?.school_id;
-    
+
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: School ID missing' });
     }
@@ -162,7 +162,7 @@ const getQuickStats = async (req, res) => {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     weekStart.setHours(0, 0, 0, 0);
-    
+
     const completedThisWeek = await sequelize.query(
       `SELECT COUNT(*) as count 
        FROM student_generated_ids 
@@ -218,7 +218,7 @@ const getQuickStats = async (req, res) => {
 const getRecentActivity = async (req, res) => {
   try {
     const schoolId = req.user?.school_id;
-    
+
     if (!schoolId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: School ID missing' });
     }
@@ -228,16 +228,17 @@ const getRecentActivity = async (req, res) => {
       `SELECT 
          c.class_name,
          d.division_name,
-         t.name as teacher_name,
+         COALESCE(t_div.name, d.class_teacher, t_sf.name, 'N/A') as teacher_name,
          COUNT(sf.id) as form_count,
          MAX(sf.created_at) as latest_submission,
          sf.status
        FROM student_forms sf
-       INNER JOIN classes c ON sf.class_id = c.id
-       LEFT JOIN divisions d ON d.class_id = c.id
-       LEFT JOIN teachers t ON sf.teacher_id = t.id
-       WHERE sf.school_id = :school_id AND c.school_id = :school_id
-       GROUP BY c.class_name, d.division_name, t.name, sf.status
+       LEFT JOIN divisions d ON sf.division_id = d.id
+       LEFT JOIN classes c ON (sf.class_id = c.id OR d.class_id = c.id)
+       LEFT JOIN teachers t_sf ON sf.teacher_id = t_sf.id
+       LEFT JOIN teachers t_div ON d.teacher_id = t_div.id
+       WHERE sf.school_id = :school_id
+       GROUP BY c.class_name, d.division_name, COALESCE(t_div.name, d.class_teacher, t_sf.name, 'N/A'), sf.status
        ORDER BY latest_submission DESC
        LIMIT 10`,
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
@@ -248,14 +249,17 @@ const getRecentActivity = async (req, res) => {
       `SELECT 
          c.class_name,
          d.division_name,
+         COALESCE(t_div.name, d.class_teacher, t_sf.name, 'N/A') as teacher_name,
          COUNT(sgi.id) as id_count,
          MAX(sgi.created_at) as latest_generation
        FROM student_generated_ids sgi
        INNER JOIN student_forms sf ON sgi.student_form_id = sf.id
-       INNER JOIN classes c ON sf.class_id = c.id
-       LEFT JOIN divisions d ON d.class_id = c.id
-       WHERE sgi.school_id = :school_id AND c.school_id = :school_id
-       GROUP BY c.class_name, d.division_name
+       LEFT JOIN divisions d ON sf.division_id = d.id
+       LEFT JOIN classes c ON (sf.class_id = c.id OR d.class_id = c.id)
+       LEFT JOIN teachers t_sf ON sf.teacher_id = t_sf.id
+       LEFT JOIN teachers t_div ON d.teacher_id = t_div.id
+       WHERE sgi.school_id = :school_id
+       GROUP BY c.class_name, d.division_name, COALESCE(t_div.name, d.class_teacher, t_sf.name, 'N/A')
        ORDER BY latest_generation DESC
        LIMIT 5`,
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
@@ -263,13 +267,13 @@ const getRecentActivity = async (req, res) => {
 
     // Format activity data
     const activities = [];
-    
+
     // Add form submission activities
     recentForms.forEach((item, index) => {
       const timeAgo = getTimeAgo(new Date(item.latest_submission));
       activities.push({
         id: `form-${index}`,
-        activity: `${item.class_name}${item.division_name ? '-' + item.division_name : ''} forms ${item.status === 'approved' ? 'approved' : 'submitted'}`,
+        activity: `${item.class_name || ''}${item.division_name ? '-' + item.division_name : ''} forms ${item.status === 'approved' ? 'approved' : 'submitted'}`,
         teacher: item.teacher_name || 'N/A',
         count: parseInt(item.form_count || 0),
         status: item.status === 'approved' ? 'Completed' : item.status === 'pending' ? 'Pending Approval' : 'In Progress',
@@ -282,8 +286,8 @@ const getRecentActivity = async (req, res) => {
       const timeAgo = getTimeAgo(new Date(item.latest_generation));
       activities.push({
         id: `id-${index}`,
-        activity: `${item.class_name}${item.division_name ? '-' + item.division_name : ''} ID generation completed`,
-        teacher: 'N/A',
+        activity: `${item.class_name || ''}${item.division_name ? '-' + item.division_name : ''} ID generation completed`,
+        teacher: item.teacher_name || 'N/A',
         count: parseInt(item.id_count || 0),
         status: 'Completed',
         time: timeAgo,
