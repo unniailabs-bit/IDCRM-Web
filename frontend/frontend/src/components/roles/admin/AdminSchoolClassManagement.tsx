@@ -114,9 +114,17 @@ export function AdminSchoolClassManagement() {
     }
   };
 
-  const assignedTeacherNames = useMemo(() => {
-    return classes.flatMap((cls) => cls.divisions.map((div) => div.class_teacher)).filter(Boolean);
-  }, [classes]);
+  const isTeacherAssigned = (teacher: Teacher, currentDivisionId?: number) => {
+    return classes.some((cls) =>
+      cls.divisions.some((div) => {
+        if (currentDivisionId && div.id === currentDivisionId) return false;
+        if (div.teacher_id) {
+          return div.teacher_id === teacher.id;
+        }
+        return div.class_teacher === teacher.name;
+      })
+    );
+  };
 
   const fetchData = async () => {
     if (!schoolId) return;
@@ -233,7 +241,11 @@ export function AdminSchoolClassManagement() {
       return;
     }
 
-    if (classTeacher && assignedTeacherNames.includes(classTeacher)) {
+    const selectedTeacher = teachers.find(
+      (t) => String(t.id) === classTeacher || t.name === classTeacher
+    );
+
+    if (selectedTeacher && isTeacherAssigned(selectedTeacher)) {
       toast.error(t('classManagement.validation.teacherAlreadyAssigned'));
       return;
     }
@@ -241,9 +253,9 @@ export function AdminSchoolClassManagement() {
     try {
       const response = await schoolService.createDivision(parseInt(schoolId), selectedClass.id, {
         division_name: divisionName.trim(),
-        class_teacher: classTeacher,
-        teacher_id: teachers.find((t) => t.name === classTeacher)?.id,
-        expected_students: parseInt(expectedStudents),
+        class_teacher: selectedTeacher ? selectedTeacher.name : classTeacher,
+        teacher_id: selectedTeacher ? selectedTeacher.id : null,
+        expected_students: expectedStudents ? parseInt(expectedStudents) : 0,
       });
 
       if (response.success) {
@@ -261,7 +273,6 @@ export function AdminSchoolClassManagement() {
   const handleSaveInlineDivision = async (classId: number) => {
     if (
       !editDivisionData.division_name?.trim() ||
-      !editDivisionData.expected_students ||
       !schoolId ||
       !editingDivisionId
     ) {
@@ -269,15 +280,11 @@ export function AdminSchoolClassManagement() {
       return;
     }
 
-    const originalTeacher = classes
-      .find((c) => c.id === classId)
-      ?.divisions.find((d) => d.id === editingDivisionId)?.class_teacher;
+    const selectedTeacher = teachers.find(
+      (t) => String(t.id) === editDivisionData.class_teacher || t.name === editDivisionData.class_teacher
+    );
 
-    if (
-      editDivisionData.class_teacher &&
-      editDivisionData.class_teacher !== originalTeacher &&
-      assignedTeacherNames.includes(editDivisionData.class_teacher)
-    ) {
+    if (selectedTeacher && isTeacherAssigned(selectedTeacher, editingDivisionId)) {
       toast.error(t('classManagement.validation.teacherAlreadyAssigned'));
       return;
     }
@@ -289,9 +296,9 @@ export function AdminSchoolClassManagement() {
         editingDivisionId,
         {
           division_name: editDivisionData.division_name.trim(),
-          class_teacher: editDivisionData.class_teacher || '',
-          teacher_id: teachers.find((t) => t.name === editDivisionData.class_teacher)?.id,
-          expected_students: editDivisionData.expected_students,
+          class_teacher: selectedTeacher ? selectedTeacher.name : editDivisionData.class_teacher || '',
+          teacher_id: selectedTeacher ? selectedTeacher.id : null,
+          expected_students: editDivisionData.expected_students || 0,
         }
       );
 
@@ -305,6 +312,18 @@ export function AdminSchoolClassManagement() {
       console.error('Error updating division:', error);
       toast.error(error.response?.data?.message || t('teachers.updateError'));
     }
+  };
+
+  const startInlineEdit = (division: Division) => {
+    setEditingDivisionId(division.id);
+    const teacher = teachers.find(
+      (t) => t.id === division.teacher_id || t.name === division.class_teacher
+    );
+    setEditDivisionData({
+      division_name: division.division_name,
+      class_teacher: teacher ? String(teacher.id) : division.class_teacher,
+      expected_students: division.expected_students,
+    });
   };
 
   const handleCancelInlineEdit = () => {
@@ -440,16 +459,6 @@ export function AdminSchoolClassManagement() {
       console.error('Error creating teacher:', error);
       toast.error(error.response?.data?.message || t('teachers.createError'));
     }
-  };
-
-  const startInlineEdit = (division: Division) => {
-    setEditingDivisionId(division.id);
-    setEditDivisionData({
-      division_name: division.division_name,
-      class_teacher: division.class_teacher,
-      teacher_id: division.teacher_id,
-      expected_students: division.expected_students,
-    });
   };
 
   if (loading) {
@@ -642,12 +651,11 @@ export function AdminSchoolClassManagement() {
                                     {teachers
                                       .filter(
                                         (teacher) =>
-                                          !assignedTeacherNames.includes(teacher.name) ||
-                                          teacher.name === division.class_teacher
+                                          !isTeacherAssigned(teacher, division.id)
                                       )
                                       .map((teacher) => (
-                                        <SelectItem key={teacher.id} value={teacher.name}>
-                                          {teacher.name}
+                                        <SelectItem key={teacher.id} value={String(teacher.id)}>
+                                          {teacher.name} {teacher.email ? `(${teacher.email})` : ''}
                                         </SelectItem>
                                       ))}
                                     {/* <SelectItem value="__add_new__" className="font-semibold text-blue-600">
@@ -767,10 +775,10 @@ export function AdminSchoolClassManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   {teachers
-                    .filter((teacher) => !assignedTeacherNames.includes(teacher.name))
+                    .filter((teacher) => !isTeacherAssigned(teacher))
                     .map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.name}>
-                        {teacher.name}
+                      <SelectItem key={teacher.id} value={String(teacher.id)}>
+                        {teacher.name} {teacher.email ? `(${teacher.email})` : ''}
                       </SelectItem>
                     ))}
                   <SelectItem value="__add_new__" className="font-semibold text-blue-600">

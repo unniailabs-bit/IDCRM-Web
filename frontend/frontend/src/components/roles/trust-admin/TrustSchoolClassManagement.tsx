@@ -63,9 +63,17 @@ export function TrustSchoolClassManagement() {
     }
   }, [schoolId]);
 
-  const assignedTeacherNames = useMemo(() => {
-    return classes.flatMap((cls) => cls.divisions.map((div) => div.class_teacher)).filter(Boolean);
-  }, [classes]);
+  const isTeacherAssigned = (teacher: Teacher, currentDivisionId?: number) => {
+    return classes.some((cls) =>
+      cls.divisions.some((div) => {
+        if (currentDivisionId && div.id === currentDivisionId) return false;
+        if (div.teacher_id) {
+          return div.teacher_id === teacher.id;
+        }
+        return div.class_teacher === teacher.name;
+      })
+    );
+  };
 
   const fetchData = async () => {
     if (!schoolId) return;
@@ -143,19 +151,22 @@ export function TrustSchoolClassManagement() {
   const handleDivisionSubmit = async () => {
     if (!selectedClass || !divisionName.trim() || !schoolId) return;
 
-    const actualTeacher = classTeacher === '__none__' ? '' : classTeacher;
-    if (actualTeacher && assignedTeacherNames.includes(actualTeacher)) {
+    const selectedTeacher =
+      classTeacher && classTeacher !== '__none__'
+        ? teachers.find((t) => String(t.id) === classTeacher || t.name === classTeacher)
+        : undefined;
+
+    if (selectedTeacher && isTeacherAssigned(selectedTeacher)) {
       toast.error(t('classManagement.validation.teacherAlreadyAssigned'));
       return;
     }
 
     try {
-      const selectedTeacher = actualTeacher ? teachers.find((t) => t.name === actualTeacher) : undefined;
       const response = await trustSchoolApi.createDivision(parseInt(schoolId), selectedClass.id, {
         division_name: divisionName.trim(),
-        class_teacher: classTeacher === '__none__' ? undefined : classTeacher,
+        class_teacher: selectedTeacher ? selectedTeacher.name : undefined,
         teacher_id: selectedTeacher?.id,
-        expected_students: parseInt(expectedStudents) || 0,
+        expected_students: expectedStudents ? parseInt(expectedStudents) : 0,
       });
 
       if (response.success) {
@@ -324,10 +335,10 @@ export function TrustSchoolClassManagement() {
                 <SelectContent>
                   <SelectItem value="__none__">{t('trustClassManagement.none')}</SelectItem>
                   {teachers
-                    .filter((teacher) => !assignedTeacherNames.includes(teacher.name))
+                    .filter((teacher) => !isTeacherAssigned(teacher))
                     .map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.name}>
-                        {teacher.name}
+                      <SelectItem key={teacher.id} value={String(teacher.id)}>
+                        {teacher.name} {teacher.email ? `(${teacher.email})` : ''}
                       </SelectItem>
                     ))}
                 </SelectContent>

@@ -232,9 +232,17 @@ export function ClassManagement() {
     fetchClassesDivisionsAndStudents();
   }, [userData]);
 
-  const assignedTeacherNames = useMemo(() => {
-    return classes.flatMap((cls) => cls.divisions.map((div) => div.class_teacher)).filter(Boolean);
-  }, [classes]);
+  const isTeacherAssigned = (teacher: Teacher, currentDivisionId?: number) => {
+    return classes.some((cls) =>
+      cls.divisions.some((div) => {
+        if (currentDivisionId && div.id === currentDivisionId) return false;
+        if (div.teacher_id) {
+          return div.teacher_id === teacher.id;
+        }
+        return div.class_teacher === teacher.name;
+      })
+    );
+  };
 
   const handleAddDivision = (classItem: Class) => {
     setSelectedClass(classItem);
@@ -271,7 +279,11 @@ export function ClassManagement() {
       return;
     }
 
-    if (classTeacher && assignedTeacherNames.includes(classTeacher)) {
+    const selectedTeacher = teachersList.find(
+      (t) => String(t.id) === classTeacher || t.name === classTeacher
+    );
+
+    if (selectedTeacher && isTeacherAssigned(selectedTeacher)) {
       toast.error(t('classManagement.validation.teacherAlreadyAssigned'));
       return;
     }
@@ -294,12 +306,11 @@ export function ClassManagement() {
     setDivisionFormErrors({ divisionName: '', classTeacher: '', expectedStudents: '' });
 
     try {
-      const selectedTeacher = teachersList.find((t) => t.name === classTeacher);
       await addDivision({
         class_id: selectedClass.id,
         class_name: selectedClass.class_name,
         division_name: divisionName.trim(),
-        class_teacher: classTeacher,
+        class_teacher: selectedTeacher ? selectedTeacher.name : classTeacher,
         teacher_id: selectedTeacher ? selectedTeacher.id : null,
         expected_students: expectedStudents ? parseInt(expectedStudents, 10) : 0,
       });
@@ -375,7 +386,10 @@ export function ClassManagement() {
     setSelectedClass(classItem);
     setSelectedDivisionForEdit(division);
     setEditDivisionName(division.division_name);
-    setEditClassTeacher(division.class_teacher);
+    const teacher = teachersList.find(
+      (t) => t.id === division.teacher_id || t.name === division.class_teacher
+    );
+    setEditClassTeacher(teacher ? String(teacher.id) : division.class_teacher);
     setEditExpectedStudents(String(division.expected_students));
     setEditDivisionFormErrors({ divisionName: '', classTeacher: '', expectedStudents: '' });
     setIsEditDivisionDialogOpen(true);
@@ -395,11 +409,6 @@ export function ClassManagement() {
       hasError = true;
     }
 
-    if (!editExpectedStudents) {
-      errors.expectedStudents = t('classManagement.validation.expectedStudentsRequired');
-      hasError = true;
-    }
-
     if (hasError) {
       setEditDivisionFormErrors(errors);
       toast.error(t('classManagement.validation.formErrors'));
@@ -411,12 +420,11 @@ export function ClassManagement() {
       return;
     }
 
+    const selectedTeacher = teachersList.find(
+      (t) => String(t.id) === editClassTeacher || t.name === editClassTeacher
+    );
 
-    if (
-      editClassTeacher &&
-      editClassTeacher !== selectedDivisionForEdit?.class_teacher &&
-      assignedTeacherNames.includes(editClassTeacher)
-    ) {
+    if (selectedTeacher && isTeacherAssigned(selectedTeacher, selectedDivisionForEdit?.id)) {
       toast.error(t('classManagement.validation.teacherAlreadyAssigned'));
       return;
     }
@@ -443,11 +451,10 @@ export function ClassManagement() {
 
 
     try {
-      const selectedTeacher = teachersList.find((t) => t.name === editClassTeacher);
       await divisionService.updateDivision(selectedDivisionForEdit.id, {
         division_name: editDivisionName.trim(),
         teacher_id: selectedTeacher ? selectedTeacher.id : null,
-        expected_students: parseInt(editExpectedStudents, 10),
+        expected_students: editExpectedStudents ? parseInt(editExpectedStudents, 10) : 0,
       });
       setIsEditDivisionDialogOpen(false);
       fetchClassesDivisionsAndStudents();
@@ -795,10 +802,10 @@ export function ClassManagement() {
 
                     <SelectContent>
                       {teachersList
-                        .filter((teacher) => !assignedTeacherNames.includes(teacher.name))
+                        .filter((teacher) => !isTeacherAssigned(teacher))
                         .map((teacher) => (
-                          <SelectItem key={teacher.id} value={teacher.name}>
-                            {teacher.name}
+                          <SelectItem key={teacher.id} value={String(teacher.id)}>
+                            {teacher.name} {teacher.email ? `(${teacher.email})` : ''}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -895,31 +902,17 @@ export function ClassManagement() {
                   {teachersList
                     .filter(
                       (teacher) =>
-                        !assignedTeacherNames.includes(teacher.name) ||
-                        teacher.name === selectedDivisionForEdit?.class_teacher
+                        !isTeacherAssigned(teacher, selectedDivisionForEdit?.id)
                     )
                     .map((teacher) => (
-                      <SelectItem key={teacher.id} value={teacher.name}>
-                        {teacher.name}
+                      <SelectItem key={teacher.id} value={String(teacher.id)}>
+                        {teacher.name} {teacher.email ? `(${teacher.email})` : ''}
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
               {editDivisionFormErrors.classTeacher && (
                 <p className="text-sm text-red-500">{editDivisionFormErrors.classTeacher}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-student-count">{t('classManagement.expectedStudentsLabel')}</Label>
-              <Input
-                id="edit-student-count"
-                type="number"
-
-                value={editExpectedStudents}
-                onChange={(e) => setEditExpectedStudents(e.target.value)}
-              />
-              {editDivisionFormErrors.expectedStudents && (
-                <p className="text-sm text-red-500">{editDivisionFormErrors.expectedStudents}</p>
               )}
             </div>
             <div className="flex justify-end gap-3 pt-4">
