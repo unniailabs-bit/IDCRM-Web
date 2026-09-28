@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table';
@@ -14,7 +14,7 @@ import {
   DialogDescription,
 } from '../../ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
-import { Search, Eye, CheckCircle, XCircle, Clock, Plus, Loader2 } from 'lucide-react';
+import { Search, Eye, CheckCircle, XCircle, Clock, Plus, Loader2, Layers } from 'lucide-react';
 import { studentService } from '@/api/studentService';
 import { classService } from '@/api/classService';
 import { useAuth } from '@/hooks/useAuth';
@@ -59,12 +59,10 @@ export function StudentManagement() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
   const [divisions, setDivisions] = useState<DivisionItem[]>([]);
 
-  // 🔵 filters
+  // 🔵 Filters & Tabs
   const [searchTerm, setSearchTerm] = useState('');
-  const [classFilter, setClassFilter] = useState('all');
-
-  const [pendingSearch, setPendingSearch] = useState('');
-  const [pendingClass, setPendingClass] = useState('all');
+  const [selectedClassTab, setSelectedClassTab] = useState('all');
+  const [selectedDivisionTab, setSelectedDivisionTab] = useState('all');
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({
@@ -77,6 +75,29 @@ export function StudentManagement() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Available Divisions for the currently active Class tab
+  const availableDivisions = useMemo(() => {
+    const filteredForClass = (students || []).filter((s) => {
+      if (selectedClassTab === 'all') return true;
+      const studentClass = (s.class_name || (s as any).className || (s as any).Class || '')
+        .toString()
+        .trim()
+        .toLowerCase();
+      return studentClass === selectedClassTab.trim().toLowerCase();
+    });
+    const uniqueDivs = Array.from(
+      new Set(
+        filteredForClass
+          .map((s) => (s.division_name || (s as any).division || (s as any).Division || '').toString().trim())
+          .filter(Boolean)
+      )
+    );
+    uniqueDivs.sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+    return uniqueDivs;
+  }, [students, selectedClassTab]);
 
   // Fetch students + classes
   useEffect(() => {
@@ -93,10 +114,10 @@ export function StudentManagement() {
 
         if (Array.isArray(studentData)) {
           // Map student_name to name if it exists in the API response
-          const mappedStudents = studentData.map((s: any) => ({
+          const mappedStudents = studentData.map((s: any, idx: number) => ({
             ...s,
             name: s.student_name || s.name || '',
-            id: s.id || s.roll_number,
+            id: s.id || s.student_id || `${s.roll_number || 'std'}-${idx}`,
             class_name: s.class_name || s.className || s.Class || '',
             division_name: s.division_name || s.division || s.Division || '',
             roll_number: s.roll_number || s['Roll No'] || s.rollNo || '',
@@ -120,7 +141,13 @@ export function StudentManagement() {
         const classRes = await classService.getClassesBySchool(userData.id);
 
         if (classRes.success && Array.isArray(classRes.data)) {
-          setClasses(classRes.data);
+          const sorted = [...classRes.data].sort((a, b) =>
+            (a.class_name || '').localeCompare(b.class_name || '', undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
+          );
+          setClasses(sorted);
         } else {
           setClasses([]);
         }
@@ -144,11 +171,18 @@ export function StudentManagement() {
           const res = await studentService.getDivisionsByClass(selectedClass.class_name);
 
           if (res.success && Array.isArray(res.data)) {
-            const uniqueDivisions = Array.from(
-              new Map(res.data.map((div: DivisionItem) => [div.division_name, div])).values()
+            const uniqueDivisions: DivisionItem[] = Array.from(
+              new Map<string, DivisionItem>(
+                res.data.map((div: DivisionItem) => [div.division_name, div])
+              ).values()
             );
             // Sort divisions by name in ascending order
-            uniqueDivisions.sort((a, b) => a.division_name.localeCompare(b.division_name));
+            uniqueDivisions.sort((a, b) =>
+              a.division_name.localeCompare(b.division_name, undefined, {
+                numeric: true,
+                sensitivity: 'base',
+              })
+            );
             setDivisions(uniqueDivisions);
           } else {
             setDivisions([]);
@@ -198,8 +232,6 @@ export function StudentManagement() {
           division_id: division_id,
         };
 
-        // console.log('Sending payload:', payload);
-
         const response = await studentService.addStudent(payload);
 
         if (response.success) {
@@ -232,125 +264,228 @@ export function StudentManagement() {
     }
   };
 
-  // Form Status UI helpers
-  const getFormStatusIcon = (status: Student['formStatus']) => {
-    switch (status) {
-      case 'Completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'Pending':
-        return <Clock className="w-4 h-4 text-yellow-600" />;
-      case 'Rejected':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      default:
-        return null;
-    }
-  };
+  // Structured & Filtered Students
+  const filteredStudents = useMemo(() => {
+    return (students || [])
+      .filter((student) => {
+        // 1. Search filter
+        const q = (searchTerm || '').trim().toLowerCase();
+        const name = (student.name || (student as any).student_name || '').toString().toLowerCase();
+        const roll = String(student.roll_number || '').toLowerCase();
 
-  const getFormStatusBadge = (status: Student['formStatus']) => {
-    const variants = {
-      Completed: 'bg-green-100 text-green-800',
-      Pending: 'bg-yellow-100 text-yellow-800',
-      Rejected: 'bg-red-100 text-red-800',
-    };
-    return variants[status || 'Pending'];
-  };
+        const matchesSearch = q === '' || name.includes(q) || roll.includes(q);
 
-  // FINAL FILTERING
-  const filteredStudents = (students || []).filter((student) => {
-    // 1. Search filter
-    const q = (searchTerm || '').trim().toLowerCase();
-    const name = (student.name || student.student_name || '').toString().toLowerCase();
-    const roll = String(student.roll_number || '').toLowerCase();
+        // 2. Class tab filter
+        const studentClass = (student.class_name || (student as any).className || (student as any).Class || '')
+          .toString()
+          .trim()
+          .toLowerCase();
+        const targetClass = (selectedClassTab || 'all').toString().trim().toLowerCase();
+        const matchesClass = targetClass === 'all' || studentClass === targetClass;
 
-    const matchesSearch = q === '' || name.includes(q) || roll.includes(q);
+        // 3. Division tab filter
+        const studentDiv = (student.division_name || (student as any).division || (student as any).Division || '')
+          .toString()
+          .trim()
+          .toLowerCase();
+        const targetDiv = (selectedDivisionTab || 'all').toString().trim().toLowerCase();
+        const matchesDivision = targetDiv === 'all' || studentDiv === targetDiv;
 
-    // 2. Class filter
-    const studentClass = (student.class_name || student.className || student.Class || '')
-      .toString()
-      .trim()
-      .toLowerCase();
-    const targetClass = (classFilter || 'all').toString().trim().toLowerCase();
-    const matchesClass = targetClass === 'all' || studentClass === targetClass;
+        return matchesSearch && matchesClass && matchesDivision;
+      })
+      .sort((a, b) => {
+        // Sort by Class Name ascending
+        const classComp = (a.class_name || '').localeCompare(b.class_name || '', undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        if (classComp !== 0) return classComp;
 
-    return matchesSearch && matchesClass;
-  });
+        // Sort by Division Name ascending
+        const divComp = (a.division_name || '').localeCompare(b.division_name || '', undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        if (divComp !== 0) return divComp;
+
+        // Sort by Roll Number numeric / string ascending
+        const compareRoll = (r1?: string, r2?: string) => {
+          const n1 = parseInt(r1 || '', 10);
+          const n2 = parseInt(r2 || '', 10);
+          if (!isNaN(n1) && !isNaN(n2)) {
+            return n1 - n2;
+          }
+          return (r1 || '').localeCompare(r2 || '', undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          });
+        };
+        const rollComp = compareRoll(a.roll_number, b.roll_number);
+        if (rollComp !== 0) return rollComp;
+
+        // Sort by Student Name ascending
+        return (a.name || '').localeCompare(b.name || '');
+      });
+  }, [students, searchTerm, selectedClassTab, selectedDivisionTab]);
 
   return (
     <div className="px-8 py-5 bg-white">
-      <div className="mb-8 md:mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">{t('studentManagement.title')}</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+          {t('studentManagement.title')}
+        </h1>
         <p className="text-base md:text-lg text-gray-600 font-medium">
           {t('studentManagement.subtitle')}
         </p>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6 border px-4 rounded-xl shadow-lg">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* SEARCH */}
-            <div className="gap-2 ">
-              <label className="text-lg text-gray-900">{t('studentManagement.searchLabel')}</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder={t('studentManagement.searchPlaceholder')}
-                  value={pendingSearch}
-                  onChange={(e) => setPendingSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
+      {/* Class & Division Wise Tabs & Search Header */}
+      <div className="flex flex-col gap-4 mb-6">
+        {/* Search Input */}
+        <div className="relative max-w-md w-full">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder={t('studentManagement.searchPlaceholder')}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 rounded-xl bg-gray-50 border-gray-200 focus:bg-white transition-colors"
+          />
+        </div>
 
-            {/* CLASS FILTER */}
-            <div className="space-y-2">
-              <label className="text-sm text-gray-600">{t('studentManagement.classLabel')}</label>
-              <Select value={pendingClass} onValueChange={setPendingClass}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('studentManagement.allClasses')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('studentManagement.allClasses')}</SelectItem>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.class_name}>
-                      {cls.class_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* APPLY BUTTON */}
-            <div className="space-y-2">
-              <label className="text-sm text-gray-600 opacity-0">{t('studentManagement.classLabel')}</label>
-              <Button
-                className="w-full bg-violet-500 hover:bg--600 text-white"
-                onClick={() => {
-                  setSearchTerm(pendingSearch);
-                  setClassFilter(pendingClass);
-                }}
+        {/* Class Filter Tabs */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <span>{t('studentManagement.class')}:</span>
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => {
+                setSelectedClassTab('all');
+                setSelectedDivisionTab('all');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl whitespace-nowrap transition-all duration-200 ${selectedClassTab === 'all'
+                ? 'bg-violet-600 text-white shadow-md shadow-violet-200 scale-102'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                }`}
+            >
+              <Layers className="w-4 h-4" />
+              {t('studentManagement.allClasses')}
+              <Badge
+                variant="secondary"
+                className={`ml-1 text-xs rounded-full border-none ${selectedClassTab === 'all'
+                  ? 'bg-violet-500 text-white'
+                  : 'bg-gray-200 text-gray-700'
+                  }`}
               >
-                {t('studentManagement.applyFilters')}
-              </Button>
+                {students.length}
+              </Badge>
+            </button>
+
+            {classes.map((cls) => {
+              const count = students.filter(
+                (s) => (s.class_name || '').toLowerCase() === cls.class_name.toLowerCase()
+              ).length;
+              const isSelected = selectedClassTab.toLowerCase() === cls.class_name.toLowerCase();
+
+              return (
+                <button
+                  key={cls.id}
+                  onClick={() => {
+                    setSelectedClassTab(cls.class_name);
+                    setSelectedDivisionTab('all');
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl whitespace-nowrap transition-all duration-200 ${isSelected
+                    ? 'bg-violet-600 text-white shadow-md shadow-violet-200 scale-102'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                    }`}
+                >
+                  {cls.class_name}
+                  <Badge
+                    variant="secondary"
+                    className={`ml-1 text-xs rounded-full border-none ${isSelected
+                      ? 'bg-violet-500 text-white'
+                      : 'bg-gray-200 text-gray-700'
+                      }`}
+                  >
+                    {count}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Division Filter Tabs */}
+        {availableDivisions.length > 0 && (
+          <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <span>{t('studentManagement.division')}:</span>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                onClick={() => setSelectedDivisionTab('all')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all duration-200 ${selectedDivisionTab === 'all'
+                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                  }`}
+              >
+                All Divisions
+              </button>
+
+              {availableDivisions.map((divName) => {
+                const count = students.filter((s) => {
+                  const matchClass =
+                    selectedClassTab === 'all' ||
+                    (s.class_name || '').toLowerCase() === selectedClassTab.toLowerCase();
+                  const matchDiv = (s.division_name || '').toLowerCase() === divName.toLowerCase();
+                  return matchClass && matchDiv;
+                }).length;
+                const isSelected = selectedDivisionTab.toLowerCase() === divName.toLowerCase();
+
+                return (
+                  <button
+                    key={divName}
+                    onClick={() => setSelectedDivisionTab(divName)}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all duration-200 ${isSelected
+                      ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
+                      }`}
+                  >
+                    Division {divName}
+                    <Badge
+                      variant="secondary"
+                      className={`ml-0.5 text-[10px] py-0 px-1.5 rounded-full border-none ${isSelected
+                        ? 'bg-orange-400 text-white'
+                        : 'bg-gray-200 text-gray-700'
+                        }`}
+                    >
+                      {count}
+                    </Badge>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
       {/* Students Table */}
-      <Card>
-        <CardHeader>
+      <Card className="border shadow-sm rounded-xl">
+        <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <CardTitle className="text-lg font-semibold">{t('studentManagement.allStudents')}</CardTitle>
-            {/* <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsAddDialogOpen(true)}
-              className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white group"
-            >
-              <Plus className="w-4 h-4 mr-2 group-hover:scale-130" />
-              Add Student
-            </Button>*/}
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              {selectedClassTab === 'all'
+                ? t('studentManagement.allStudents')
+                : `${selectedClassTab} ${t('studentManagement.class')}`}
+              {selectedDivisionTab !== 'all' && (
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                  Division {selectedDivisionTab}
+                </Badge>
+              )}
+              <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200">
+                {filteredStudents.length}
+              </Badge>
+            </CardTitle>
           </div>
         </CardHeader>
 
@@ -358,7 +493,7 @@ export function StudentManagement() {
           {error && <p className="text-red-500 mb-4">{error}</p>}
 
           <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <div className="inline-block min-w-full align-middle px-10">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-6">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -366,70 +501,42 @@ export function StudentManagement() {
                     <TableHead>{t('studentManagement.studentName')}</TableHead>
                     <TableHead className="text-center">{t('studentManagement.class')}</TableHead>
                     <TableHead className="text-center">{t('studentManagement.division')}</TableHead>
-                    {/* <TableHead>Form Status</TableHead>
-                    <TableHead>Submitted On</TableHead> */}
-                    {/* <TableHead className="text-center">Actions</TableHead> */}
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center">
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                      <TableCell colSpan={4} className="text-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-600" />
                       </TableCell>
                     </TableRow>
                   ) : filteredStudents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-gray-500">
+                      <TableCell colSpan={4} className="text-center text-gray-500 py-8">
                         {t('studentManagement.noStudents')}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredStudents.map((student) => (
+                    filteredStudents.map((student, index) => (
                       <TableRow
-                        key={student.id}
-                        className=" hover:bg-gray-100 transition-colors"
-                      // onClick={() => openViewDialog(student)}
+                        key={`${student.id}-${student.class_name || ''}-${student.division_name || ''}-${index}`}
+                        className="hover:bg-gray-50 transition-colors"
                       >
                         <TableCell className="font-medium text-center">
                           {student.roll_number}
                         </TableCell>
                         <TableCell className="font-medium">{student.name}</TableCell>
-                        <TableCell className="text-center">{student.class_name || '-'}</TableCell>
                         <TableCell className="text-center">
-                          {student.division_name || '-'}
+                          <Badge variant="outline" className="bg-gray-50">
+                            {student.class_name || '-'}
+                          </Badge>
                         </TableCell>
-
-                        {/* <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getFormStatusIcon(student.formStatus || 'Pending')}
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs ${getFormStatusBadge(
-                                student.formStatus || 'Pending'
-                              )}`}
-                            >
-                              {student.formStatus || 'Pending'}
-                            </span>
-                          </div>
-                        </TableCell> */}
-
-                        {/* <TableCell>{student.submittedOn || '-'}</TableCell> */}
-
-                        {/* <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-2  hover:bg-orange-100 text-orange-500 hover:text-orange-500 group"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openViewDialog(student);
-                            }}
-                          >
-                            <Eye className="w-4 h-4 group-hover:scale-130" />
-                            View
-                          </Button>
-                        </TableCell> */}
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-gray-50">
+                            {student.division_name || '-'}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -449,7 +556,6 @@ export function StudentManagement() {
           </DialogHeader>
 
           <div className="grid gap-4 mt-4">
-            {/* Name */}
             <div>
               <Label>{t('studentManagement.nameLabel')}</Label>
               <Input
@@ -459,7 +565,6 @@ export function StudentManagement() {
               />
             </div>
 
-            {/* Roll Number */}
             <div>
               <Label>{t('studentManagement.rollNumberLabel')}</Label>
               <Input
@@ -469,7 +574,6 @@ export function StudentManagement() {
               />
             </div>
 
-            {/* Class */}
             <div>
               <Label>{t('studentManagement.class')}</Label>
               <Select
@@ -491,7 +595,6 @@ export function StudentManagement() {
               </Select>
             </div>
 
-            {/* Division */}
             <div>
               <Label>{t('studentManagement.division')}</Label>
               <Select
@@ -513,7 +616,6 @@ export function StudentManagement() {
               </Select>
             </div>
 
-            {/* Parent Phone */}
             <div>
               <Label>{t('studentManagement.parentPhone')}</Label>
               <Input
@@ -535,12 +637,13 @@ export function StudentManagement() {
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{t('studentManagement.studentDetails')}</DialogTitle>
-            <DialogDescription>{t('studentManagement.studentDetailsDesc', { name: selectedStudent?.name })}</DialogDescription>
+            <DialogDescription>
+              {t('studentManagement.studentDetailsDesc', { name: selectedStudent?.name })}
+            </DialogDescription>
           </DialogHeader>
 
           {selectedStudent && (
             <div className="grid gap-6 mt-4">
-              {/* Row 1 */}
               <div className="flex justify-between">
                 <div>
                   <p className="text-gray-500 text-sm">{t('studentManagement.rollNumber')}</p>
@@ -554,7 +657,6 @@ export function StudentManagement() {
                 </div>
               </div>
 
-              {/* Row 2 */}
               <div className="flex justify-between">
                 <div>
                   <p className="text-gray-500 text-sm">{t('studentManagement.studentName')}</p>
@@ -566,7 +668,6 @@ export function StudentManagement() {
                 </div>
               </div>
 
-              {/* Row 3 */}
               <div className="flex justify-between">
                 <div>
                   <p className="text-gray-500 text-sm">{t('studentManagement.class')}</p>
