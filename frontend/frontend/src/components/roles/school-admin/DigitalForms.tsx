@@ -157,8 +157,21 @@ export function DigitalForms() {
             };
           });
 
-          setClassData(formattedClassData);
-          setFilteredClassData(formattedClassData);
+          const sortedClassData = [...formattedClassData].sort((a, b) => {
+            const classComp = (a.class || '').localeCompare(b.class || '', undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            });
+            if (classComp !== 0) return classComp;
+
+            return (a.division || '').localeCompare(b.division || '', undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            });
+          });
+
+          setClassData(sortedClassData);
+          setFilteredClassData(sortedClassData);
 
           const aggregates = formattedClassData.reduce(
             (acc, curr) => {
