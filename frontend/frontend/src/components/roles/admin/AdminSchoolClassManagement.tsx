@@ -130,7 +130,24 @@ export function AdminSchoolClassManagement() {
       ]);
 
       if (classesRes.success) {
-        setClasses(classesRes.data || []);
+        const rawClasses: Class[] = classesRes.data || [];
+        const sortedClasses = rawClasses
+          .map((cls) => ({
+            ...cls,
+            divisions: [...(cls.divisions || [])].sort((a, b) =>
+              (a.division_name || '').localeCompare(b.division_name || '', undefined, {
+                numeric: true,
+                sensitivity: 'base',
+              })
+            ),
+          }))
+          .sort((a, b) =>
+            (a.class_name || '').localeCompare(b.class_name || '', undefined, {
+              numeric: true,
+              sensitivity: 'base',
+            })
+          );
+        setClasses(sortedClasses);
       }
       if (teachersRes.success) {
         setTeachers(teachersRes.data || []);
