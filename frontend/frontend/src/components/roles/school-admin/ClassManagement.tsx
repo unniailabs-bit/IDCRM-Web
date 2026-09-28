@@ -173,6 +173,12 @@ export function ClassManagement() {
                 });
                 return { ...div, students: studentsInDivision };
               });
+              divisionsWithStudents.sort((a, b) =>
+                (a.division_name || '').localeCompare(b.division_name || '', undefined, {
+                  numeric: true,
+                  sensitivity: 'base',
+                })
+              );
               classesWithDivisionsAndStudents.push({
                 ...cls,
                 divisions: divisionsWithStudents,
