@@ -62,9 +62,9 @@ const updateFormStatusSchool = async (req, res) => {
     if (!["approved", "rejected"].includes(status))
       return res.status(400).json({ success: false, message: "Invalid status" });
 
-    // Verify form belongs to this school
+    // Verify form belongs to this school and fetch roll_number / division_id
     const form = await sequelize.query(
-      `SELECT sf.id
+      `SELECT sf.id, sf.roll_number, sf.division_id, sf.class_id
        FROM student_forms sf
        LEFT JOIN divisions d ON sf.division_id = d.id
        LEFT JOIN classes c ON d.class_id = c.id
@@ -74,6 +74,33 @@ const updateFormStatusSchool = async (req, res) => {
 
     if (!form.length)
       return res.status(403).json({ success: false, message: "Not authorized" });
+
+    if (status === "approved" && form[0].roll_number !== null && form[0].roll_number !== undefined && form[0].roll_number !== '') {
+      const existingRoll = await sequelize.query(
+        `SELECT id 
+         FROM student_forms 
+         WHERE (division_id = :division_id OR (division_id IS NULL AND class_id = :class_id))
+           AND roll_number::text = :roll_number::text 
+           AND id != :id 
+           AND LOWER(status) = 'approved'`,
+        {
+          replacements: {
+            division_id: form[0].division_id,
+            class_id: form[0].class_id,
+            roll_number: form[0].roll_number,
+            id
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+
+      if (existingRoll.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot approve form: Roll number ${form[0].roll_number} already exists for an approved student in this division.`
+        });
+      }
+    }
 
     // Update status
     await sequelize.query(
@@ -142,7 +169,7 @@ const updateStudentFormSchool = async (req, res) => {
 
     // Verify form belongs to this school
     const form = await sequelize.query(
-      `SELECT sf.id
+      `SELECT sf.id, sf.roll_number, sf.division_id, sf.class_id, sf.status
        FROM student_forms sf
        LEFT JOIN divisions d ON sf.division_id = d.id
        LEFT JOIN classes c ON d.class_id = c.id
@@ -195,6 +222,38 @@ const updateStudentFormSchool = async (req, res) => {
 
     if (!Object.keys(finalUpdateData).length)
       return res.status(400).json({ success: false, message: "No valid fields to update" });
+
+    // Check for duplicate Roll Number in the same division if setting status to approved or modifying roll_number on an approved form
+    const targetRollNumber = finalUpdateData.roll_number !== undefined ? finalUpdateData.roll_number : form[0].roll_number;
+    const targetStatus = finalUpdateData.status || form[0].status;
+    const targetDivisionId = finalUpdateData.division_id || form[0].division_id;
+    const targetClassId = form[0].class_id;
+
+    if ((targetStatus === 'approved' || (finalUpdateData.roll_number !== undefined && form[0].status === 'approved')) && targetRollNumber !== null && targetRollNumber !== undefined && targetRollNumber !== '') {
+      const rollCheck = await sequelize.query(
+        `SELECT id FROM student_forms 
+         WHERE (division_id = :division_id OR (division_id IS NULL AND class_id = :class_id))
+         AND roll_number::text = :roll_number::text
+         AND LOWER(status) = 'approved'
+         AND id != :id`,
+        {
+          replacements: {
+            division_id: targetDivisionId,
+            class_id: targetClassId,
+            roll_number: targetRollNumber,
+            id
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+
+      if (rollCheck.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `A student with roll number ${targetRollNumber} already exists in this division.`
+        });
+      }
+    }
 
     const setClause = Object.keys(finalUpdateData).map(f => `"${f}" = :${f}`).join(", ");
 

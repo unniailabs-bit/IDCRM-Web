@@ -585,6 +585,34 @@ exports.submitFormViaLink = async (req, res) => {
     }
 
     // =====================================================
+    // DUPLICATE CHECK (ROLL NUMBER)
+    // =====================================================
+    if (roll_number) {
+      const rollCheck = await sequelize.query(
+        `SELECT id FROM student_forms 
+         WHERE division_id = :division_id 
+         AND roll_number::text = :roll_number::text
+         AND LOWER(status) = 'approved'
+         ${formId ? 'AND id != :formId' : ''}`,
+        {
+          replacements: {
+            division_id,
+            roll_number: roll_number.toString().trim(),
+            formId: formId || null
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+
+      if (rollCheck.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `A student with roll number ${roll_number} already exists in this division`
+        });
+      }
+    }
+
+    // =====================================================
     // INSERT NEW FORM
     // =====================================================
     const insertQuery = `

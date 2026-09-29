@@ -100,6 +100,34 @@ const updateFormStatus = async (req, res) => {
     if (form[0].teacher_id !== teacherId)
       return res.status(403).json({ success: false, message: "Not authorized" });
 
+    // If approving, check if roll_number already exists in this division among approved forms
+    if (status === "approved" && form[0].roll_number !== null && form[0].roll_number !== undefined && form[0].roll_number !== '') {
+      const existingRoll = await sequelize.query(
+        `SELECT id, first_name, last_name 
+         FROM student_forms 
+         WHERE (division_id = :division_id OR (division_id IS NULL AND class_id = :class_id))
+           AND roll_number::text = :roll_number::text 
+           AND id != :id 
+           AND LOWER(status) = 'approved'`,
+        {
+          replacements: {
+            division_id: form[0].division_id,
+            class_id: form[0].class_id,
+            roll_number: form[0].roll_number,
+            id: form[0].id
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+
+      if (existingRoll.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot approve form: Roll number ${form[0].roll_number} already exists for an approved student in this division.`
+        });
+      }
+    }
+
     // 3) Update status
     await sequelize.query(
       `UPDATE student_forms 
@@ -376,6 +404,38 @@ const updateStudentForm = async (req, res) => {
       }
     }
 
+    // Check for duplicate Roll Number in the same division if setting status to approved or modifying roll_number on an approved form
+    const targetRollNumber = finalUpdateData.roll_number !== undefined ? finalUpdateData.roll_number : form[0].roll_number;
+    const targetStatus = finalUpdateData.status || form[0].status;
+    const targetDivisionId = finalUpdateData.division_id || form[0].division_id;
+    const targetClassId = form[0].class_id;
+
+    if ((targetStatus === 'approved' || (finalUpdateData.roll_number !== undefined && form[0].status === 'approved')) && targetRollNumber !== null && targetRollNumber !== undefined && targetRollNumber !== '') {
+      const rollCheck = await sequelize.query(
+        `SELECT id FROM student_forms 
+         WHERE (division_id = :division_id OR (division_id IS NULL AND class_id = :class_id))
+         AND roll_number::text = :roll_number::text
+         AND LOWER(status) = 'approved'
+         AND id != :id`,
+        {
+          replacements: {
+            division_id: targetDivisionId,
+            class_id: targetClassId,
+            roll_number: targetRollNumber,
+            id
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+
+      if (rollCheck.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `A student with roll number ${targetRollNumber} already exists in this division.`
+        });
+      }
+    }
+
     await sequelize.query(
       `UPDATE student_forms 
        SET ${setClause}, updated_at = NOW() 
@@ -487,10 +547,10 @@ const bulkUpdateFormStatus = async (req, res) => {
     const { ids, status } = req.body;
 
     if (!Array.isArray(ids) || ids.length === 0)
-      return res.status(400).json({ success:false, message:"IDs required" });
+      return res.status(400).json({ success: false, message: "IDs required" });
 
     if (!["approved", "rejected"].includes(status))
-      return res.status(400).json({ success:false, message:"Invalid status" });
+      return res.status(400).json({ success: false, message: "Invalid status" });
 
     // 1️⃣ Teacher name
     const teacher = await sequelize.query(
@@ -527,9 +587,49 @@ const bulkUpdateFormStatus = async (req, res) => {
     if (unauthorized || forms.length !== ids.length) {
       await transaction.rollback();
       return res.status(403).json({
-        success:false,
-        message:"Not authorized for some records"
+        success: false,
+        message: "Not authorized for some records"
       });
+    }
+
+    if (status === "approved") {
+      for (const formId of ids) {
+        const [formInfo] = await sequelize.query(
+          `SELECT sf.id, sf.roll_number, sf.division_id, sf.class_id, sf.first_name, sf.last_name
+           FROM student_forms sf
+           WHERE sf.id = :id`,
+          { replacements: { id: formId }, type: QueryTypes.SELECT, transaction }
+        );
+
+        if (formInfo && formInfo.roll_number !== null && formInfo.roll_number !== undefined && formInfo.roll_number !== '') {
+          const existingRoll = await sequelize.query(
+            `SELECT id 
+             FROM student_forms 
+             WHERE (division_id = :division_id OR (division_id IS NULL AND class_id = :class_id))
+               AND roll_number::text = :roll_number::text 
+               AND id != :id 
+               AND LOWER(status) = 'approved'`,
+            {
+              replacements: {
+                division_id: formInfo.division_id,
+                class_id: formInfo.class_id,
+                roll_number: formInfo.roll_number,
+                id: formInfo.id
+              },
+              type: QueryTypes.SELECT,
+              transaction
+            }
+          );
+
+          if (existingRoll.length > 0) {
+            await transaction.rollback();
+            return res.status(409).json({
+              success: false,
+              message: `Cannot approve form for ${formInfo.first_name || ''} ${formInfo.last_name || ''}: Roll number ${formInfo.roll_number} already exists in this division.`
+            });
+          }
+        }
+      }
     }
 
     // 3️⃣ BULK UPDATE (🔥 FAST QUERY)
@@ -558,14 +658,14 @@ const bulkUpdateFormStatus = async (req, res) => {
     await transaction.commit();
 
     return res.json({
-      success:true,
-      message:`${ids.length} forms ${status} successfully`
+      success: true,
+      message: `${ids.length} forms ${status} successfully`
     });
 
   } catch (err) {
     await transaction.rollback();
     console.error("🔥 Bulk update error:", err);
-    return res.status(500).json({ success:false, message:"Server error" });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-module.exports = { getStudentForms, updateFormStatus, requestCorrection, updateStudentForm,bulkUpdateFormStatus,deleteStudentForms };
+module.exports = { getStudentForms, updateFormStatus, requestCorrection, updateStudentForm, bulkUpdateFormStatus, deleteStudentForms };
