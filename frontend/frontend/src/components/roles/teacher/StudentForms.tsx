@@ -1061,7 +1061,6 @@ export function StudentForms() {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<StudentForm>>({});
   const [newFiles, setNewFiles] = useState<Record<string, File>>({});
-  const [cities, setCities] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -1076,25 +1075,8 @@ export function StudentForms() {
   const token = localStorage.getItem('token');
 
   const onFieldChange = (name: string, value: string | null) => {
-    if (name === 'state') {
-      setEditData((prev) => ({ ...prev, state: value || '', city: '' }));
-    } else {
-      setEditData((prev) => ({ ...prev, [name]: value }));
-    }
+    setEditData((prev) => ({ ...prev, [name]: value }));
   };
-
-  useEffect(() => {
-    if (editData.state) {
-      const stateData = statesAndDistricts.states.find((s) => s.state === editData.state);
-      if (stateData) {
-        setCities(stateData.districts);
-      } else {
-        setCities([]);
-      }
-    } else {
-      setCities([]);
-    }
-  }, [editData.state]);
 
   const handleUpdate = async (nextStatus?: string) => {
     if (!selectedForm) return;
@@ -2128,12 +2110,6 @@ export function StudentForms() {
                         name="state"
                         isEditing={isEditing}
                         onChange={onFieldChange}
-                        type="select"
-                        options={statesAndDistricts.states.map((s) => ({
-                          value: s.state,
-                          label: s.state,
-                        }))}
-                        placeholder={t('studentForms.allDivisions')}
                       />
                     </div>
 
@@ -2182,9 +2158,7 @@ export function StudentForms() {
                           name="city"
                           isEditing={isEditing}
                           onChange={onFieldChange}
-                          type="select"
-                          options={cities.map((c) => ({ value: c, label: c }))}
-                          placeholder={t('studentForms.allStatus')}
+
                         />
                         <EditableField
                           label={t('studentForms.pinCode')}
