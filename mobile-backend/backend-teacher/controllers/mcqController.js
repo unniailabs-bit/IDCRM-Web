@@ -10,7 +10,7 @@ const AdmZip = require("adm-zip");
 // -----------------------------
 // Multer setup for file upload
 // - Supports:
-//   - MCQ Excel file       -> field: "mcq_file" or legacy "file"
+//   - MCQ Excel file        -> field: "mcq_file" or legacy "file"
 //   - Material file(s)     -> field: "material_files"
 // -----------------------------
 const storage = multer.diskStorage({
