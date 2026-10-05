@@ -335,7 +335,8 @@ exports.getMaterialWiseMcqs = async (req, res) => {
               'option_c', q.option_c,
               'option_d', q.option_d,
               'correct_answer', q.correct_answer,
-              'explanation', q.explanation
+              'explanation', q.explanation,
+              'image_url', q.image_url
             )
           ),
           '[]'
@@ -371,6 +372,7 @@ exports.getMaterialWiseMcqs = async (req, res) => {
         q.option_d,
         q.correct_answer,
         q.explanation,
+        q.image_url,
         q.created_at
       FROM mcq_questions q
       LEFT JOIN teacher_subjects s ON q.subject_id = s.id
@@ -402,7 +404,7 @@ exports.getMaterialWiseMcqs = async (req, res) => {
           mcqs: []
         };
       }
-      
+
       // Also clean up individual mcq object
       row.subject_name = row.subject_name || "General";
       unassignedGroupedMap[groupKey].mcqs.push(row);

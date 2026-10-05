@@ -10,11 +10,11 @@ const {
 const teacherAuth = require("../middleware/authmiddleware");
 const upload = require("../middleware/uploadGallery"); // 👈 multer
 
-// POST → Upload gallery (single / multiple photos)
+// POST → Upload gallery (single / multiple photos, unlimited count)
 router.post(
   "/gallery",
   teacherAuth,
-  upload.array("photos", 10), // 👈 form-data key = photos
+  upload.array("photos"),
   uploadEventGallery
 );
 

@@ -39,4 +39,15 @@ router.delete("/mcq/delete/:id", teacherAuth, mcqController.deleteMcq);
 router.delete("/mcq", teacherAuth, mcqController.deleteTeacherMcqs);
 router.delete("/mcq/group", teacherAuth, mcqController.deleteMcqGroupByTitle);
 
+// -----------------------------
+// Upload image for a single MCQ question
+// POST /api/teacher/mcq/upload-image  { image (file), mcq_id }
+// -----------------------------
+router.post(
+  "/mcq/upload-image",
+  teacherAuth,
+  mcqController.uploadMcqImage,
+  mcqController.uploadMcqImageHandler
+);
+
 module.exports = router;

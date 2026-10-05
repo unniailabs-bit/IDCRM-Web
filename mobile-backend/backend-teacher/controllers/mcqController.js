@@ -5,6 +5,7 @@ const multer = require("multer");
 const ExcelJS = require("exceljs");
 const fs = require("fs");
 const path = require("path");
+const AdmZip = require("adm-zip");
 
 // -----------------------------
 // Multer setup for file upload
@@ -37,6 +38,7 @@ const storage = multer.diskStorage({
 exports.uploadExcel = multer({ storage }).fields([
   { name: "mcq_file", maxCount: 1 },       // preferred for MCQ Excel
   { name: "file", maxCount: 1 },           // legacy Excel field
+  { name: "images_zip", maxCount: 1 },     // ZIP of images
   { name: "material_files", maxCount: 10 } // material files (pdf, doc, video, etc.)
 ]);
 
@@ -60,6 +62,7 @@ exports.getTeacherMcqs = async (req, res) => {
              q.question, q.option_a, q.option_b, q.option_c, q.option_d, 
              q.correct_answer, q.explanation, q.is_active, q.created_at, 
              q.updated_at, q.material_id, q.subject_id, q.title,
+             q.image_url,
              s.subject_name
       FROM mcq_questions q
       LEFT JOIN teacher_subjects s ON q.subject_id = s.id
@@ -93,7 +96,7 @@ exports.getTeacherMcqs = async (req, res) => {
     // Grouping by title + subject_id
     const groupedMcqs = mcqs.reduce((acc, mcq) => {
       let groupTitle = mcq.title;
-      
+
       if (!groupTitle) {
         if (mcq.subject_name) {
           groupTitle = `${mcq.subject_name} Practice`;
@@ -157,9 +160,9 @@ exports.updateMcq = async (req, res) => {
       RETURNING *
       `,
       {
-        replacements: { 
-          id, question, option_a, option_b, option_c, option_d, 
-          correct_answer, subject_id, title, teacher_id: teacher.id 
+        replacements: {
+          id, question, option_a, option_b, option_c, option_d,
+          correct_answer, subject_id, title, teacher_id: teacher.id
         },
         type: QueryTypes.UPDATE
       }
@@ -231,12 +234,12 @@ exports.deleteMcqGroupByTitle = async (req, res) => {
        AND title = :title
        AND subject_id ${subjectFilter}`,
       {
-        replacements: { 
-          teacher_id: teacher.id, 
-          class_id, 
-          division_id, 
-          title, 
-          subject_id 
+        replacements: {
+          teacher_id: teacher.id,
+          class_id,
+          division_id,
+          title,
+          subject_id
         },
         type: QueryTypes.DELETE
       }
@@ -554,20 +557,106 @@ exports.addMcqQuestions = async (req, res) => {
       fs.unlinkSync(excelFile.path);
     }
 
+    // Fetch newly inserted questions to map ZIP images and return to frontend
+    let insertedQuestions = [];
+    try {
+      const qRows = await sequelize.query(
+        `SELECT id, question, image_url FROM mcq_questions
+         WHERE teacher_id = :teacher_id
+           AND class_id = :class_id
+           AND division_id = :division_id
+         ORDER BY id DESC LIMIT :count`,
+        {
+          replacements: {
+            teacher_id: teacher.id,
+            class_id,
+            division_id,
+            count: insertData.length
+          },
+          type: QueryTypes.SELECT
+        }
+      );
+      insertedQuestions = qRows.reverse();
+    } catch (qErr) {
+      console.error("Error fetching inserted questions:", qErr);
+    }
+
+    // Process ZIP of images if provided
+    const zipFile = req.files && req.files.images_zip && req.files.images_zip[0];
+    let imagesLinkedCount = 0;
+
+    if (zipFile && fs.existsSync(zipFile.path) && insertedQuestions.length > 0) {
+      try {
+        const zip = new AdmZip(zipFile.path);
+        const zipEntries = zip.getEntries();
+        const imgFolder = path.join(__dirname, "../../uploads/mcq-images");
+        if (!fs.existsSync(imgFolder)) {
+          fs.mkdirSync(imgFolder, { recursive: true });
+        }
+
+        for (const entry of zipEntries) {
+          if (entry.isDirectory || entry.entryName.includes("__MACOSX") || path.basename(entry.entryName).startsWith(".")) {
+            continue;
+          }
+
+          const filename = path.basename(entry.entryName);
+          const ext = path.extname(filename).toLowerCase();
+          if (![".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
+            continue;
+          }
+
+          // Match question number from filename (e.g. 1.jpg, q1.png, 01.jpg, question_1.png, img1.png)
+          const match = filename.match(/(\d+)/);
+          if (!match) continue;
+
+          const qNum = parseInt(match[1], 10);
+          const qIndex = qNum - 1;
+
+          if (qIndex >= 0 && qIndex < insertedQuestions.length) {
+            const question = insertedQuestions[qIndex];
+            const newFilename = `${Date.now()}_${question.id}${ext}`;
+            const targetPath = path.join(imgFolder, newFilename);
+
+            fs.writeFileSync(targetPath, entry.getData());
+            const imageUrl = `uploads/mcq-images/${newFilename}`;
+
+            await sequelize.query(
+              `UPDATE mcq_questions SET image_url = :image_url WHERE id = :id`,
+              {
+                replacements: { image_url: imageUrl, id: question.id },
+                type: QueryTypes.UPDATE
+              }
+            );
+
+            question.image_url = imageUrl;
+            imagesLinkedCount++;
+          }
+        }
+      } catch (zipErr) {
+        console.error("Error processing MCQ images zip:", zipErr);
+      } finally {
+        if (zipFile && fs.existsSync(zipFile.path)) {
+          fs.unlinkSync(zipFile.path);
+        }
+      }
+    }
+
     res.json({
       success: true,
       message: "MCQs added successfully",
-      total_mcqs: insertData.length
+      total_mcqs: insertData.length,
+      images_linked: imagesLinkedCount,
+      questions: insertedQuestions
     });
 
     // 🚀 Send Notifications in background
     (async () => {
-        const payload = {
-            title: "New MCQ Practice",
-            body: `New MCQ Practice uploaded: ${title || 'General Practice'}`,
-            data: { type: 'mcq', class_id, division_id }
-        };
-        sendPushToClass(teacher.school_id, class_id, division_id, payload);
+      const payload = {
+        title: "New MCQ Practice",
+        body: `New MCQ Practice uploaded: ${title || 'General Practice'}`,
+        data: { type: 'mcq', class_id, division_id }
+      };
+      sendPushToClass(teacher.school_id, class_id, division_id, payload);
     })();
 
   } catch (error) {
@@ -651,6 +740,102 @@ exports.getTeacherMaterialsForMcq = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error"
+    });
+  }
+};
+
+// -----------------------------
+// Multer setup for MCQ question images (single upload)
+// -----------------------------
+const mcqImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const imagesPath = path.join(__dirname, "../../uploads/mcq-images");
+    if (!fs.existsSync(imagesPath)) fs.mkdirSync(imagesPath, { recursive: true });
+    cb(null, imagesPath);
+  },
+  filename: function (req, file, cb) {
+    const uniquePrefix = Date.now() + "_" + Math.round(Math.random() * 1e9);
+    const sanitizedName = file.originalname.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    cb(null, uniquePrefix + "_" + sanitizedName);
+  }
+});
+
+const mcqImageFileFilter = (req, file, cb) => {
+  const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files (jpg, png, gif, webp) are allowed'), false);
+  }
+};
+
+exports.uploadMcqImage = multer({
+  storage: mcqImageStorage,
+  fileFilter: mcqImageFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }
+}).single("image");
+
+// -----------------------------
+// Upload image for a specific MCQ question
+// POST /api/teacher/mcq/upload-image
+// -----------------------------
+exports.uploadMcqImageHandler = async (req, res) => {
+  try {
+    const teacher = req.teacher;
+
+    if (!teacher || !teacher.id) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const { mcq_id } = req.body;
+
+    if (!mcq_id) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ success: false, message: "mcq_id is required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "image file is required" });
+    }
+
+    const [mcq] = await sequelize.query(
+      `SELECT id FROM mcq_questions WHERE id = :mcq_id AND teacher_id = :teacher_id`,
+      {
+        replacements: { mcq_id, teacher_id: teacher.id },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!mcq) {
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ success: false, message: "MCQ not found or not yours" });
+    }
+
+    const imageUrl = `uploads/mcq-images/${req.file.filename}`;
+
+    await sequelize.query(
+      `UPDATE mcq_questions SET image_url = :image_url WHERE id = :mcq_id AND teacher_id = :teacher_id`,
+      {
+        replacements: { image_url: imageUrl, mcq_id, teacher_id: teacher.id },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    return res.json({
+      success: true,
+      message: "Image uploaded successfully",
+      image_url: imageUrl
+    });
+
+  } catch (error) {
+    console.error("Upload MCQ Image Error:", error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload image"
     });
   }
 };
