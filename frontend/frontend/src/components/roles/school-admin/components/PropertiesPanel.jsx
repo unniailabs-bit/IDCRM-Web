@@ -1,6 +1,119 @@
 import React, { useState } from 'react';
 import { Trash2, Lock, Unlock, Copy } from 'lucide-react';
 import { ImageCropperModal } from './ImageCropperModal';
+import { getCardSize } from '../utils';
+
+const inputCls =
+  'w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none';
+
+const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(v || '');
+
+// Color swatch + hex text, with optional "none" (transparent) toggle
+const ColorField = ({ label, value, onChange, allowNone = false, fallback = '#000000' }) => {
+  const isNone = !value || value === 'transparent';
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      <div className="flex items-center space-x-2">
+        <input
+          type="color"
+          value={isHexColor(value) ? value : fallback}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 w-8 rounded cursor-pointer border-0 p-0 shrink-0"
+        />
+        <input
+          type="text"
+          value={isNone && allowNone ? 'none' : value || fallback}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${inputCls} min-w-0`}
+        />
+        {allowNone && (
+          <button
+            onClick={() => onChange('transparent')}
+            title="No color"
+            className={`h-8 px-2 text-xs rounded border shrink-0 ${isNone
+              ? 'bg-blue-100 text-blue-700 border-blue-300'
+              : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              }`}
+          >
+            None
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Button group for picking one of a few options
+const Segmented = ({ label, value, options, onChange }) => (
+  <div>
+    {label && <label className="block text-xs text-gray-500 mb-1">{label}</label>}
+    <div className="flex border border-gray-300 rounded overflow-hidden">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          title={opt.title}
+          className={`flex-1 py-1.5 text-xs ${value === opt.value
+            ? 'bg-blue-100 text-blue-700 font-medium'
+            : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const NumberField = ({ label, value, onChange, step = 1, min, max }) => (
+  <div>
+    <label className="block text-xs text-gray-500 mb-1">{label}</label>
+    <input
+      type="number"
+      step={step}
+      min={min}
+      max={max}
+      value={value}
+      onChange={(e) => {
+        const n = parseFloat(e.target.value);
+        onChange(Number.isFinite(n) ? n : 0);
+      }}
+      className={inputCls}
+    />
+  </div>
+);
+
+const Toggle = ({ label, checked, onChange }) => (
+  <label className="flex items-center justify-between text-xs text-gray-600 cursor-pointer">
+    <span>{label}</span>
+    <input
+      type="checkbox"
+      checked={!!checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className="h-4 w-4 accent-blue-600 cursor-pointer"
+    />
+  </label>
+);
+
+const BORDER_STYLES = [
+  { value: 'solid', label: '———', title: 'Solid' },
+  { value: 'dashed', label: '- - -', title: 'Dashed' },
+  { value: 'dotted', label: '· · ·', title: 'Dotted' },
+];
+
+const FONT_FAMILIES = [
+  { value: '', label: 'Default' },
+  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
+  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
+  { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
+  { value: '"Trebuchet MS", sans-serif', label: 'Trebuchet MS' },
+  { value: 'Georgia, serif', label: 'Georgia' },
+  { value: '"Times New Roman", Times, serif', label: 'Times New Roman' },
+  { value: '"Courier New", Courier, monospace', label: 'Courier New' },
+  { value: 'Impact, sans-serif', label: 'Impact' },
+  { value: '"Noto Sans Devanagari", "Mangal", sans-serif', label: 'Devanagari (मराठी/हिंदी)' },
+];
 
 export const PropertiesPanel = ({
   selectedElement,
@@ -14,8 +127,8 @@ export const PropertiesPanel = ({
   const [croppingImageSrc, setCroppingImageSrc] = useState(null);
 
   if (!selectedElement) {
-    const isHorizontal = template?.orientation !== 'vertical';
-    const aspectRatio = isHorizontal ? 85.6 / 53.98 : 53.98 / 85.6;
+    const { widthMm, heightMm } = getCardSize(template);
+    const aspectRatio = widthMm / heightMm;
 
     return (
       <div className="w-full h-full flex flex-col overflow-y-auto">
@@ -129,6 +242,9 @@ export const PropertiesPanel = ({
       style: { ...selectedElement.style, [key]: value },
     });
   };
+
+  const isLine = ['line', 'vline'].includes(selectedElement.subType);
+  const fillType = selectedElement.style?.fillType || 'solid';
 
   return (
     <div className="w-full h-full flex flex-col overflow-y-auto">
@@ -285,6 +401,90 @@ export const PropertiesPanel = ({
               </div>
 
               <div>
+                <label className="block text-xs text-gray-500 mb-1">Font</label>
+                <select
+                  value={selectedElement.style?.fontFamily || ''}
+                  onChange={(e) => handleStyleChange('fontFamily', e.target.value || undefined)}
+                  className={inputCls}
+                  style={{ fontFamily: selectedElement.style?.fontFamily || undefined }}
+                >
+                  {FONT_FAMILIES.map((f) => (
+                    <option key={f.label} value={f.value} style={{ fontFamily: f.value || undefined }}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Style</label>
+                <div className="flex border border-gray-300 rounded overflow-hidden">
+                  {[
+                    { key: 'fontWeight', on: 'bold', off: 'normal', label: 'B', cls: 'font-bold', title: 'Bold' },
+                    { key: 'fontStyle', on: 'italic', off: 'normal', label: 'I', cls: 'italic', title: 'Italic' },
+                    { key: 'textDecoration', on: 'underline', off: 'none', label: 'U', cls: 'underline', title: 'Underline' },
+                    { key: 'textDecoration', on: 'line-through', off: 'none', label: 'S', cls: 'line-through', title: 'Strikethrough' },
+                  ].map((opt) => {
+                    const active = selectedElement.style?.[opt.key] === opt.on;
+                    return (
+                      <button
+                        key={opt.title}
+                        title={opt.title}
+                        onClick={() => handleStyleChange(opt.key, active ? opt.off : opt.on)}
+                        className={`flex-1 py-1.5 text-sm ${opt.cls} ${active
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                          }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <NumberField
+                  label="Letter Spacing (px)"
+                  step={0.1}
+                  value={selectedElement.style?.letterSpacing || 0}
+                  onChange={(v) => handleStyleChange('letterSpacing', v)}
+                />
+                <NumberField
+                  label="Line Height"
+                  step={0.05}
+                  min={0.5}
+                  value={selectedElement.style?.lineHeight || 1.2}
+                  onChange={(v) => handleStyleChange('lineHeight', v || 1.2)}
+                />
+              </div>
+
+              <ColorField
+                label="Highlight / Background"
+                allowNone
+                fallback="#ffff00"
+                value={selectedElement.style?.backgroundColor}
+                onChange={(v) => handleStyleChange('backgroundColor', v)}
+              />
+
+              <div className="grid grid-cols-2 gap-3 items-end">
+                <NumberField
+                  label="Corner Radius (mm)"
+                  step={0.5}
+                  min={0}
+                  value={selectedElement.style?.cornerRadius || 0}
+                  onChange={(v) => handleStyleChange('cornerRadius', Math.max(0, v))}
+                />
+                <div className="pb-2">
+                  <Toggle
+                    label="Text Shadow"
+                    checked={selectedElement.style?.shadow}
+                    onChange={(v) => handleStyleChange('shadow', v)}
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs text-gray-500 mb-1">Text Transform</label>
                 <div className="flex border border-gray-300 rounded overflow-hidden">
                   {[
@@ -347,45 +547,125 @@ export const PropertiesPanel = ({
         )}
 
         {/* Style/Appearance for shapes */}
-        {(selectedElement.type === 'shape' || selectedElement.subType === 'rectangle') && (
+        {selectedElement.type === 'shape' && isLine && (
           <section>
-            <h3 className="text-xs font-semibold text-gray-500 mb-3 uppercase">Appearance</h3>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Background Color</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  value={selectedElement.style?.backgroundColor || '#transparent'}
-                  onChange={(e) => handleStyleChange('backgroundColor', e.target.value)}
-                  className="h-8 w-8 rounded cursor-pointer border-0 p-0"
-                />
-                <input
-                  type="text"
-                  value={selectedElement.style?.backgroundColor || 'transparent'}
-                  onChange={(e) => handleStyleChange('backgroundColor', e.target.value)}
-                  className="flex-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="mt-3">
-              <label className="block text-xs text-gray-500 mb-1">Border Width</label>
-              <input
-                type="number"
-                value={parseInt(selectedElement.style?.borderWidth || 0)}
-                onChange={(e) => handleStyleChange('borderWidth', `${e.target.value}px`)}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            <h3 className="text-xs font-semibold text-gray-500 mb-3 uppercase">Line</h3>
+            <div className="space-y-3">
+              <NumberField
+                label="Thickness (px)"
+                step={0.5}
+                min={0.5}
+                value={parseFloat(selectedElement.style?.borderWidth ?? 1) || 0}
+                onChange={(v) => handleStyleChange('borderWidth', String(Math.max(0.5, v)))}
+              />
+              <ColorField
+                label="Color"
+                value={selectedElement.style?.borderColor}
+                onChange={(v) => handleStyleChange('borderColor', v)}
+              />
+              <Segmented
+                label="Style"
+                value={selectedElement.style?.borderStyle || 'solid'}
+                options={[...BORDER_STYLES, { value: 'double', label: '═══', title: 'Double (needs 3px+)' }]}
+                onChange={(v) => handleStyleChange('borderStyle', v)}
               />
             </div>
-            <div className="mt-3">
-              <label className="block text-xs text-gray-500 mb-1">Border Color</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="color"
-                  value={selectedElement.style?.borderColor || '#000000'}
-                  onChange={(e) => handleStyleChange('borderColor', e.target.value)}
-                  className="h-8 w-8 rounded cursor-pointer border-0 p-0"
+          </section>
+        )}
+
+        {selectedElement.type === 'shape' && !isLine && (
+          <section>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3 uppercase">Fill</h3>
+            <div className="space-y-3">
+              <Segmented
+                value={fillType}
+                options={[
+                  { value: 'none', label: 'None' },
+                  { value: 'solid', label: 'Solid' },
+                  { value: 'gradient', label: 'Gradient' },
+                ]}
+                onChange={(v) => handleStyleChange('fillType', v)}
+              />
+              {fillType === 'solid' && (
+                <ColorField
+                  label="Color"
+                  allowNone
+                  fallback="#3b82f6"
+                  value={selectedElement.style?.backgroundColor}
+                  onChange={(v) => handleStyleChange('backgroundColor', v)}
                 />
-              </div>
+              )}
+              {fillType === 'gradient' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <ColorField
+                      label="From"
+                      fallback="#3b82f6"
+                      value={selectedElement.style?.gradientFrom || '#3b82f6'}
+                      onChange={(v) => handleStyleChange('gradientFrom', v)}
+                    />
+                    <ColorField
+                      label="To"
+                      fallback="#1e3a8a"
+                      value={selectedElement.style?.gradientTo || '#1e3a8a'}
+                      onChange={(v) => handleStyleChange('gradientTo', v)}
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs text-gray-500">Direction</label>
+                      <span className="text-xs text-gray-400">
+                        {selectedElement.style?.gradientAngle ?? 90}°
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      step="15"
+                      value={selectedElement.style?.gradientAngle ?? 90}
+                      onChange={(e) => handleStyleChange('gradientAngle', parseInt(e.target.value, 10))}
+                      className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <h3 className="text-xs font-semibold text-gray-500 mt-5 mb-3 uppercase">Border</h3>
+            <div className="space-y-3">
+              <NumberField
+                label="Width (px)"
+                step={0.5}
+                min={0}
+                value={parseFloat(selectedElement.style?.borderWidth ?? 1) || 0}
+                onChange={(v) => handleStyleChange('borderWidth', String(Math.max(0, v)))}
+              />
+              <ColorField
+                label="Color"
+                value={selectedElement.style?.borderColor}
+                onChange={(v) => handleStyleChange('borderColor', v)}
+              />
+              <Segmented
+                label="Style"
+                value={selectedElement.style?.borderStyle || 'solid'}
+                options={BORDER_STYLES}
+                onChange={(v) => handleStyleChange('borderStyle', v)}
+              />
+              {['rectangle', 'roundedRect'].includes(selectedElement.subType) && (
+                <NumberField
+                  label="Corner Radius (mm)"
+                  step={0.5}
+                  min={0}
+                  value={selectedElement.style?.cornerRadius || 0}
+                  onChange={(v) => handleStyleChange('cornerRadius', Math.max(0, v))}
+                />
+              )}
+              <Toggle
+                label="Drop Shadow"
+                checked={selectedElement.style?.shadow}
+                onChange={(v) => handleStyleChange('shadow', v)}
+              />
             </div>
           </section>
         )}
@@ -475,27 +755,78 @@ export const PropertiesPanel = ({
                 </select>
               </div>
 
-              {/* Opacity */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-xs text-gray-500">Opacity</label>
-                  <span className="text-xs text-gray-400">
-                    {Math.round((selectedElement.style?.opacity ?? 1) * 100)}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={selectedElement.style?.opacity ?? 1}
-                  onChange={(e) => handleStyleChange('opacity', parseFloat(e.target.value))}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            </div>
+
+            <h3 className="text-xs font-semibold text-gray-500 mt-5 mb-3 uppercase">Frame</h3>
+            <div className="space-y-3">
+              <Toggle
+                label="Circle Crop"
+                checked={selectedElement.style?.circle}
+                onChange={(v) => handleStyleChange('circle', v)}
+              />
+              {!selectedElement.style?.circle && (
+                <NumberField
+                  label="Corner Radius (mm)"
+                  step={0.5}
+                  min={0}
+                  value={selectedElement.style?.cornerRadius || 0}
+                  onChange={(v) => handleStyleChange('cornerRadius', Math.max(0, v))}
                 />
-              </div>
+              )}
+              <NumberField
+                label="Border Width (px)"
+                step={0.5}
+                min={0}
+                value={parseFloat(selectedElement.style?.borderWidth) || 0}
+                onChange={(v) => handleStyleChange('borderWidth', String(Math.max(0, v)))}
+              />
+              {parseFloat(selectedElement.style?.borderWidth) > 0 && (
+                <>
+                  <ColorField
+                    label="Border Color"
+                    value={selectedElement.style?.borderColor}
+                    onChange={(v) => handleStyleChange('borderColor', v)}
+                  />
+                  <Segmented
+                    label="Border Style"
+                    value={selectedElement.style?.borderStyle || 'solid'}
+                    options={BORDER_STYLES}
+                    onChange={(v) => handleStyleChange('borderStyle', v)}
+                  />
+                </>
+              )}
+              <Toggle
+                label="Drop Shadow"
+                checked={selectedElement.style?.shadow}
+                onChange={(v) => handleStyleChange('shadow', v)}
+              />
+              <Toggle
+                label="Black & White"
+                checked={selectedElement.style?.grayscale}
+                onChange={(v) => handleStyleChange('grayscale', v)}
+              />
             </div>
           </section>
         )}
+
+        {/* Opacity - all element types */}
+        <section>
+          <div className="flex justify-between items-center mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase">Opacity</h3>
+            <span className="text-xs text-gray-400">
+              {Math.round((selectedElement.style?.opacity ?? 1) * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={selectedElement.style?.opacity ?? 1}
+            onChange={(e) => handleStyleChange('opacity', parseFloat(e.target.value))}
+            className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          />
+        </section>
 
         {/* Z-Index / Layering */}
         <section>

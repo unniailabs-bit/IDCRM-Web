@@ -16,8 +16,15 @@ import {
   Image as ImageIcon,
   Undo,
   Redo,
+  Minus,
+  Plus,
+  X,
+  Languages,
+  RectangleHorizontal,
+  RectangleVertical,
 } from 'lucide-react';
 import { TemplateManager } from '../components/TemplateManager';
+import { CardLayoutSettings } from '../components/CardLayoutSettings';
 import { translateBatch } from '../../../../utils/translationService'; // Import translation service
 
 import { defaultTemplate } from '../consts/defaultTemplate';
@@ -357,14 +364,17 @@ export const EditorPage = () => {
       x: 10,
       y: 10,
       width:
-        tool.field === 'school.principal_sign'
+        tool.defaultSize?.width ??
+        (tool.field === 'school.principal_sign'
           ? 35
           : tool.type === 'image'
             ? 20
             : tool.subType === 'line'
               ? 30
-              : 40,
-      height: tool.field === 'school.principal_sign' ? 10 : tool.subType === 'line' ? 2 : 10,
+              : 40),
+      height:
+        tool.defaultSize?.height ??
+        (tool.field === 'school.principal_sign' ? 10 : tool.subType === 'line' ? 2 : 10),
       content: tool.defaultData?.text || '',
       data: tool.defaultData || {},
       field: tool.field,
@@ -379,6 +389,7 @@ export const EditorPage = () => {
           borderColor: '#000000',
           backgroundColor: 'transparent',
         }),
+        ...tool.defaultStyle,
       },
     };
 
@@ -645,159 +656,149 @@ export const EditorPage = () => {
     window.print();
   };
 
+  const iconBtn =
+    'h-8 w-8 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed';
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 h-14 flex items-center justify-between px-4 shrink-0 z-20">
-        <div className="flex items-center space-x-2">
-          <span className="text-gray-300">|</span>
-          <span className="text-sm text-gray-500">
+      <header className="bg-white border-b border-gray-200 h-12 flex items-center justify-between gap-3 px-3 shrink-0 z-20 whitespace-nowrap">
+        {/* Left: name + history */}
+        <div className="flex items-center gap-1 min-w-0">
+          <span
+            className="text-sm font-medium text-gray-700 truncate max-w-[180px] mr-2"
+            title={template.name || t('editor.untitled')}
+          >
             {template.name || t('editor.untitled')}
           </span>
+          <button
+            onClick={handleUndo}
+            disabled={historyIndex <= 0}
+            title={t('editor.undoTooltip')}
+            className={iconBtn}
+          >
+            <Undo size={16} />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={historyIndex >= history.length - 1}
+            title={t('editor.redoTooltip')}
+            className={iconBtn}
+          >
+            <Redo size={16} />
+          </button>
         </div>
 
-        <div className="flex items-center space-x-2">
-
-          {/* Undo/Redo */}
-          <div className="flex items-center space-x-1 mr-4 border-r border-gray-200 pr-4">
-            <button
-              onClick={handleUndo}
-              disabled={historyIndex <= 0}
-              title={t('editor.undoTooltip')}
-              className={`p-1.5 rounded transition ${historyIndex > 0
-                ? 'text-gray-600 hover:bg-gray-100'
-                : 'text-gray-300 cursor-not-allowed'
-                }`}
-            >
-              <Undo size={18} />
-            </button>
-
-            <button
-              onClick={handleRedo}
-              disabled={historyIndex >= history.length - 1}
-              title={t('editor.redoTooltip')}
-              className={`p-1.5 rounded transition ${historyIndex < history.length - 1
-                ? 'text-gray-600 hover:bg-gray-100'
-                : 'text-gray-300 cursor-not-allowed'
-                }`}
-            >
-              <Redo size={18} />
-            </button>
-          </div>
-
-          {/* Reference Image */}
-          <div className="flex items-center space-x-2 mr-4 bg-gray-50 p-1 rounded border border-gray-200">
-            <button
-              onClick={() => referenceInputRef.current.click()}
-              title={t('editor.uploadRefTooltip')}
-              className={`p-1.5 rounded transition block ${referenceImage
-                ? 'bg-blue-100 text-blue-600'
-                : 'text-gray-500 hover:bg-gray-200'
-                }`}
-            >
-              <ImageIcon size={16} />
-            </button>
-
-            {referenceImage && (
-              <>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={referenceOpacity}
-                  onChange={(e) =>
-                    setReferenceOpacity(parseFloat(e.target.value))
-                  }
-                  title={t('editor.refOpacity')}
-                  className="w-16 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-
-                <button
-                  onClick={clearReference}
-                  className="text-xs text-red-500 font-medium hover:underline"
-                >
-                  {t('editor.clear')}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Templates */}
-          <button
-            onClick={() => setIsTemplateManagerOpen(true)}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition-colors mr-2"
-          >
-            <Layout size={16} />
-            <span>{t('editor.templates')}</span>
-          </button>
-
+        {/* Center: card setup */}
+        <div className="flex items-center gap-2">
           {/* Orientation */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 mr-2">
+          <div className="flex items-center h-8 bg-gray-100 rounded-md p-0.5">
             <button
-              onClick={toggleOrientation}
-              className={`px-3 py-1 text-xs font-medium rounded ${template.orientation === 'horizontal'
-                ? 'bg-white shadow text-gray-800'
-                : 'text-gray-500'
+              onClick={() => template.orientation === 'vertical' && toggleOrientation()}
+              title={t('editor.landscape')}
+              className={`h-7 w-8 flex items-center justify-center rounded ${template.orientation !== 'vertical'
+                ? 'bg-white shadow-sm text-gray-800'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
-              {t('editor.landscape')}
+              <RectangleHorizontal size={16} />
             </button>
-
             <button
-              onClick={toggleOrientation}
-              className={`px-3 py-1 text-xs font-medium rounded ${template.orientation === 'vertical'
-                ? 'bg-white shadow text-gray-800'
-                : 'text-gray-500'
+              onClick={() => template.orientation !== 'vertical' && toggleOrientation()}
+              title={t('editor.portrait')}
+              className={`h-7 w-8 flex items-center justify-center rounded ${template.orientation === 'vertical'
+                ? 'bg-white shadow-sm text-gray-800'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
-              {t('editor.portrait')}
+              <RectangleVertical size={16} />
             </button>
           </div>
 
-          {/* Zoom Controls */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 mr-2">
+          {/* Card Size & Cards per Page */}
+          <CardLayoutSettings template={template} onUpdateTemplate={updateTemplate} />
+
+          {/* Zoom */}
+          <div className="flex items-center h-8 bg-gray-100 rounded-md p-0.5">
             <button
               onClick={() => setScale((s) => Math.max(0.1, s - 0.1))}
-              className="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded font-medium cursor-pointer"
+              title="Zoom out"
+              className="h-7 w-7 flex items-center justify-center rounded text-gray-600 hover:bg-white"
             >
-              -
+              <Minus size={14} />
             </button>
-            <span className="text-xs font-medium text-gray-800 w-12 text-center pointer-events-none select-none">
+            <span className="text-xs font-medium text-gray-700 w-10 text-center select-none">
               {Math.round(scale * 100)}%
             </span>
             <button
               onClick={() => setScale((s) => Math.min(5, s + 0.1))}
-              className="px-2 py-1 text-gray-600 hover:bg-gray-200 rounded font-medium cursor-pointer"
+              title="Zoom in"
+              className="h-7 w-7 flex items-center justify-center rounded text-gray-600 hover:bg-white"
             >
-              +
+              <Plus size={14} />
             </button>
           </div>
+        </div>
 
-          {/* Import */}
+        {/* Right: tools + primary actions */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsTemplateManagerOpen(true)}
+            title={t('editor.templates')}
+            className={iconBtn}
+          >
+            <Layout size={16} />
+          </button>
+
+          {/* Reference Image */}
+          <button
+            onClick={() => referenceInputRef.current.click()}
+            title={t('editor.uploadRefTooltip')}
+            className={`${iconBtn} ${referenceImage ? 'bg-blue-50 text-blue-600' : ''}`}
+          >
+            <ImageIcon size={16} />
+          </button>
+          {referenceImage && (
+            <div className="flex items-center gap-2 h-8 px-2 bg-blue-50 rounded-md">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={referenceOpacity}
+                onChange={(e) => setReferenceOpacity(parseFloat(e.target.value))}
+                title={t('editor.refOpacity')}
+                className="w-14 h-1 cursor-pointer accent-blue-600"
+              />
+              <button
+                onClick={clearReference}
+                title={t('editor.clear')}
+                className="text-blue-600 hover:text-red-500"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => fileInputRef.current.click()}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50"
+            title={t('editor.import')}
+            className={iconBtn}
           >
             <Upload size={16} />
-            <span>{t('editor.import')}</span>
+          </button>
+          <button onClick={exportTemplate} title={t('editor.export')} className={iconBtn}>
+            <Download size={16} />
           </button>
 
-          {/* Export */}
-          <button
-            onClick={exportTemplate}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-50"
-          >
-            <Download size={16} />
-            <span>{t('editor.export')}</span>
-          </button>
+          <div className="w-px h-5 bg-gray-200 mx-1" />
 
           {/* Language */}
-          <div className="flex items-center space-x-2 mr-2 bg-gray-100 rounded-lg p-1">
-            <span className="text-xs font-medium text-gray-600 pl-2">
-              {t('editor.lang')}
-            </span>
-
+          <div
+            className="flex items-center gap-1 h-8 px-2 rounded-md text-gray-600 hover:bg-gray-100"
+            title={t('editor.lang')}
+          >
+            <Languages size={16} />
             <select
               value={printLanguage}
               onChange={(e) => setPrintLanguage(e.target.value)}
@@ -809,25 +810,23 @@ export const EditorPage = () => {
             </select>
           </div>
 
-          {/* Save */}
           <button
             onClick={saveTemplate}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+            className="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            <Save size={16} />
+            <Save size={15} />
             <span>{t('editor.save')}</span>
           </button>
 
-          {/* Print */}
           <button
             onClick={handlePrint}
             disabled={isLangLoading}
-            className={`flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-white rounded ${isLangLoading
+            className={`flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-white rounded-md ${isLangLoading
               ? 'bg-gray-400'
               : 'bg-blue-600 hover:bg-blue-700'
               }`}
           >
-            <Printer size={16} />
+            <Printer size={15} />
             <span>
               {isLangLoading
                 ? t('editor.translating', {
@@ -858,6 +857,8 @@ export const EditorPage = () => {
           language={printLanguage}
           backgroundImage={template.backgroundImage}
           backgroundOpacity={template.backgroundOpacity}
+          cardWidthMm={template.cardWidthMm}
+          cardHeightMm={template.cardHeightMm}
         />
 
         {/* Right: Properties & Layers */}

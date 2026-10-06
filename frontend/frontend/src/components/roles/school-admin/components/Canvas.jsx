@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { CardElement } from './CardElement';
-import { mmToPx, pxToMm, MM_TO_PX, CARD_WIDTH_MM, CARD_HEIGHT_MM } from '../utils';
+import { mmToPx, pxToMm, MM_TO_PX, CARD_WIDTH_MM, CARD_HEIGHT_MM, getCardSize } from '../utils';
 
 // Helper for local digits
 const toLocalDigits = (str) => {
@@ -34,13 +34,14 @@ export const Canvas = ({
   language = 'en',
   backgroundImage,
   backgroundOpacity,
+  cardWidthMm = CARD_WIDTH_MM,
+  cardHeightMm = CARD_HEIGHT_MM,
 }) => {
-  const isPortrait = orientation === 'vertical';
-  const widthMm = isPortrait ? CARD_HEIGHT_MM : CARD_WIDTH_MM;
-  const heightMm = isPortrait ? CARD_WIDTH_MM : CARD_HEIGHT_MM;
+  const { widthMm, heightMm } = getCardSize({ orientation, cardWidthMm, cardHeightMm });
 
-  const cardWidthPx = mmToPx(widthMm);
-  const cardHeightPx = mmToPx(heightMm);
+  // Unrounded so the on-screen card matches the printed mm size exactly
+  const cardWidthPx = widthMm * MM_TO_PX;
+  const cardHeightPx = heightMm * MM_TO_PX;
 
   return (
     <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto p-10 select-none">

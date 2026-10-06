@@ -14,7 +14,29 @@ import {
   Users,
   Droplet,
   LayoutTemplate,
+  SquareRoundCorner,
+  Circle,
+  Minus,
+  SeparatorVertical,
+  Triangle,
+  TriangleRight,
+  Diamond,
+  Pentagon,
+  Hexagon,
+  Star,
+  MoveRight,
+  ChevronRight,
+  Bookmark,
+  Slash,
 } from 'lucide-react';
+
+// Default look for filled shapes: solid blue, no border
+const FILLED = {
+  fillType: 'solid',
+  backgroundColor: '#3b82f6',
+  borderWidth: '0',
+  borderColor: '#1e3a8a',
+};
 
 export const Toolbar = ({ onAddElement }) => {
   const { t } = useTranslation();
@@ -25,7 +47,50 @@ export const Toolbar = ({ onAddElement }) => {
       items: [
         { type: 'text', label: t("translation.staticText"), icon: Type, defaultData: { text: 'Text' } },
         { type: 'shape', label: t("translation.rectangle"), icon: Square, subType: 'rectangle' },
-        { type: 'shape', label: t("translation.line"), icon: PenTool, subType: 'line' },
+        {
+          type: 'shape',
+          label: t("translation.roundedRectangle", "Rounded Rect"),
+          icon: SquareRoundCorner,
+          subType: 'roundedRect',
+          defaultSize: { width: 30, height: 15 },
+          defaultStyle: { ...FILLED, cornerRadius: 3 },
+        },
+        {
+          type: 'shape',
+          label: t("translation.circle", "Circle"),
+          icon: Circle,
+          subType: 'ellipse',
+          defaultSize: { width: 20, height: 20 },
+          defaultStyle: FILLED,
+        },
+        { type: 'shape', label: t("translation.line"), icon: Minus, subType: 'line' },
+        {
+          type: 'shape',
+          label: t("translation.verticalLine", "Vertical Line"),
+          icon: SeparatorVertical,
+          subType: 'vline',
+          defaultSize: { width: 2, height: 30 },
+          defaultStyle: { borderWidth: '1', borderColor: '#000000' },
+        },
+        ...[
+          { subType: 'triangle', icon: Triangle, key: 'triangle', label: 'Triangle' },
+          { subType: 'rightTriangle', icon: TriangleRight, key: 'rightTriangle', label: 'Right Triangle' },
+          { subType: 'diamond', icon: Diamond, key: 'diamond', label: 'Diamond' },
+          { subType: 'pentagon', icon: Pentagon, key: 'pentagon', label: 'Pentagon' },
+          { subType: 'hexagon', icon: Hexagon, key: 'hexagon', label: 'Hexagon' },
+          { subType: 'star', icon: Star, key: 'star', label: 'Star' },
+          { subType: 'arrow', icon: MoveRight, key: 'arrow', label: 'Arrow', size: { width: 25, height: 12 } },
+          { subType: 'chevron', icon: ChevronRight, key: 'chevron', label: 'Chevron', size: { width: 25, height: 12 } },
+          { subType: 'banner', icon: Bookmark, key: 'banner', label: 'Ribbon Banner', size: { width: 40, height: 10 } },
+          { subType: 'parallelogram', icon: Slash, key: 'parallelogram', label: 'Slant Strip', size: { width: 40, height: 10 } },
+        ].map((s) => ({
+          type: 'shape',
+          subType: s.subType,
+          icon: s.icon,
+          label: t(`translation.${s.key}`, s.label),
+          defaultSize: s.size || { width: 20, height: 20 },
+          defaultStyle: FILLED,
+        })),
         {
           type: 'image',
           label: t("translation.staticImage"),
