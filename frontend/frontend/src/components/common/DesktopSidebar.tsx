@@ -130,7 +130,7 @@ export function DesktopSidebar({ menuItems, userRole }: DesktopSidebarProps) {
                             : 'group-hover:text-green-700 group-hover:scale-115'
                       }`}
                   />
-                  <span className="text-sm font-medium">{t(`menu.${item.id}`)}</span>
+                  <span className="text-sm font-medium">{t(`menu.${item.id}`, item.label)}</span>
                   {isActive && <ChevronRight className="w-6 h-6 text-white ml-auto" />}
                 </Link>
               </li>

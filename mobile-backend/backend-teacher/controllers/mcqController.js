@@ -324,6 +324,7 @@ exports.addMcqQuestions = async (req, res) => {
       req.file; // extreme legacy fallback
 
     if (!excelFile) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: "Excel file is required"
@@ -480,7 +481,72 @@ exports.addMcqQuestions = async (req, res) => {
     });
 
     if (mcqs.length === 0) {
+      await transaction.rollback();
       return res.status(400).json({ success: false, message: "No MCQs found in Excel" });
+    }
+
+    // Validate ZIP for duplicate question numbers before inserting MCQs
+    const zipFileEarly = req.files && req.files.images_zip && req.files.images_zip[0];
+    if (zipFileEarly && fs.existsSync(zipFileEarly.path)) {
+      try {
+        const zip = new AdmZip(zipFileEarly.path);
+        const zipEntries = zip.getEntries();
+        const questionNumberCounts = {};
+
+        for (const entry of zipEntries) {
+          if (entry.isDirectory || entry.entryName.includes("__MACOSX") || path.basename(entry.entryName).startsWith(".")) {
+            continue;
+          }
+
+          const filename = path.basename(entry.entryName);
+          const ext = path.extname(filename).toLowerCase();
+          if (![".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext)) {
+            continue;
+          }
+
+          const match = filename.match(/(\d+)/);
+          if (!match) continue;
+
+          const qNum = parseInt(match[1], 10);
+          if (!questionNumberCounts[qNum]) {
+            questionNumberCounts[qNum] = [];
+          }
+          questionNumberCounts[qNum].push(filename);
+        }
+
+        const duplicateNumbers = Object.keys(questionNumberCounts)
+          .map(Number)
+          .filter((qNum) => questionNumberCounts[qNum].length > 1)
+          .sort((a, b) => a - b);
+
+        if (duplicateNumbers.length > 0) {
+          await transaction.rollback();
+          if (excelFile && fs.existsSync(excelFile.path)) {
+            fs.unlinkSync(excelFile.path);
+          }
+          if (fs.existsSync(zipFileEarly.path)) {
+            fs.unlinkSync(zipFileEarly.path);
+          }
+          return res.status(400).json({
+            success: false,
+            message: `Duplicate question number(s) already exist in ZIP: ${duplicateNumbers.join(", ")}. Each question number must have only one image.`,
+            duplicate_question_numbers: duplicateNumbers
+          });
+        }
+      } catch (zipValidateErr) {
+        console.error("Error validating MCQ images zip:", zipValidateErr);
+        await transaction.rollback();
+        if (excelFile && fs.existsSync(excelFile.path)) {
+          fs.unlinkSync(excelFile.path);
+        }
+        if (zipFileEarly && fs.existsSync(zipFileEarly.path)) {
+          fs.unlinkSync(zipFileEarly.path);
+        }
+        return res.status(400).json({
+          success: false,
+          message: "Invalid ZIP file. Please upload a valid images ZIP."
+        });
+      }
     }
 
     const insertData = mcqs.map((mcq, index) => {

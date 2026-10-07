@@ -35,6 +35,7 @@ const schoolDashboardRoutes = require('./backend-school/routes/schoolDashboardRo
 const schoolSettingsRoutes = require('./backend-school/routes/schoolSettingsRoutes');
 const schoolReportsRoutes = require('./backend-school/routes/schoolReportsRoutes');
 const teacherAuthRoutes = require('./backend-teacher/routes/authRoutes');
+const teacherAttendanceRoutes = require('./backend-teacher/routes/attendanceRoutes');
 const ImportstudentRoute = require('./backend-teacher/routes/ImportstudentRoute');
 const teacherMyclassesRoutes = require('./backend-teacher/routes/teacherMyclassesRoutes');
 const teacherStudentFormsRoutes = require('./backend-teacher/routes/teacherStudentFormsRoutes');
@@ -46,6 +47,7 @@ const studentFormShareRoutes = require('./backend-teacher/routes/studentFormShar
 const formLinkRoutes = require('./backend-teacher/routes/formLinkRoutes');
 const trustRegistrationRoutes = require('./backend-trust/routes/trustRegistrationRoutes');
 const studentFormRoutes = require('./backend-school/routes/studentFormRoutes');
+const attendanceEditRequestsRoutes = require('./backend-school/routes/attendanceEditRequestsRoutes');
 // ------------------- App Setup -------------------
 const app = express();
 app.use(express.json({ limit: '100mb' }));
@@ -103,19 +105,19 @@ const path = require('path');
 const fs = require('fs');
 app.use('/uploads', (req, res, next) => {
   let filePath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
-  
+
   // Try main uploads folder
   const mainPath = path.join(__dirname, 'uploads', filePath);
   if (fs.existsSync(mainPath) && fs.statSync(mainPath).isFile()) {
     return res.sendFile(mainPath);
   }
-  
+
   // Fallback to mobile-backend uploads folder
   const mobilePath = path.join(__dirname, '..', 'mobile-backend', 'uploads', filePath);
   if (fs.existsSync(mobilePath) && fs.statSync(mobilePath).isFile()) {
     return res.sendFile(mobilePath);
   }
-  
+
   res.status(404).json({ success: false, message: 'File not found' });
 });
 
@@ -167,20 +169,24 @@ app.use('/api/school/fees', require('./backend-school/routes/schoolFeesRoutes'))
 app.use('/api/school/teacher', teacherRoutes);
 app.use('/api/school/student', studentRoutes);
 app.use('/api/school/appointments', require('./backend-school/routes/appointmentRoutes'));
+app.use("/api/school/student-forms", studentFormRoutes);
+app.use("/api/school/attendance-edit-requests", attendanceEditRequestsRoutes);
+app.use('/api/school/dashboard', schoolDashboardRoutes);
+app.use('/api/school/settings', schoolSettingsRoutes);
+app.use('/api/school/reports', schoolReportsRoutes);
+app.use('/api/school/info', require('./backend-school/routes/schoolInfoRoutes')); // [NEW] Public School Info Routes
+
+// Generic /api/school routes (must come AFTER specific sub-paths)
 app.use('/api/school', schoolRoutes);
 app.use('/api/school', schoolLogoRoutes);
 app.use('/api/school', principalSignRoutes);
 app.use("/api/school", studentIDRoutes);
 app.use("/api/school", schoolGenerateIdRoutes);
-app.use("/api/school/student-forms", studentFormRoutes);
-app.use('/api/school/dashboard', schoolDashboardRoutes);
-app.use('/api/school/settings', schoolSettingsRoutes);
-app.use('/api/school/reports', schoolReportsRoutes);
-app.use('/api/school/info', require('./backend-school/routes/schoolInfoRoutes')); // [NEW] Public School Info Routes
 app.use("/api/school", Schooleditstudentform);
 
 // Teacher
 app.use('/api/teacher/auth', teacherAuthRoutes);
+app.use('/api/teacher/attendance', teacherAttendanceRoutes);
 app.use('/api/teacher/myclass', teacherMyclassesRoutes);
 app.use("/api/teacher", teacherPendingApprovalRoutes);
 app.use('/api/teacher/student-forms', teacherStudentFormsRoutes);

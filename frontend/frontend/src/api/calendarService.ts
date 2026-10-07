@@ -6,6 +6,8 @@ export interface CalendarEvent {
   type: 'HOLIDAY' | 'EVENT' | 'EXAM';
   calendar_date: string; // YYYY-MM-DD
   description?: string;
+  is_attendance_required?: boolean;
+  is_active?: boolean;
 }
 
 export const calendarService = {

@@ -145,7 +145,7 @@ export function MobileSidebar({ isOpen, onClose, menuItems, userRole }: MobileSi
                         className={`w-5 h-5 transition-transform duration-200 ${isActive ? 'scale-115' : 'group-hover:scale-110'
                           }`}
                       />
-                      <span className="text-sm font-medium">{t(`menu.${item.id}`)}</span>
+                      <span className="text-sm font-medium">{t(`menu.${item.id}`, item.label)}</span>
                       {isActive && <ChevronRight className="w-6 h-6 text-white ml-auto" />}
                     </Link>
                   </li>

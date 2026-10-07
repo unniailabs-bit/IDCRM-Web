@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Calendar,
   MessageSquare,
+  ClipboardList,
 } from 'lucide-react';
 
 import { useAuth } from '../hooks/useAuth';
@@ -69,8 +70,11 @@ import { FeesModule } from '../components/roles/school-admin/FeesModule';
 import { HolidayCalendar } from '../components/roles/school-admin/HolidayCalendar';
 import { AppointmentManagement } from '../components/roles/school-admin/AppointmentManagement';
 
+import { AttendanceEditRequests } from '../components/roles/school-admin/AttendanceEditRequests';
+
 import { TeacherDashboard } from '../components/roles/teacher/TeacherDashboard';
 import { MyClasses } from '../components/roles/teacher/MyClasses';
+import { AttendanceRegister } from '../components/roles/teacher/AttendanceRegister';
 import { StudentForms } from '../components/roles/teacher/StudentForms';
 import { PendingApprovals } from '../components/roles/teacher/PendingApprovals';
 import { ImportStudents } from '../components/roles/teacher/ImportStudent';
@@ -247,6 +251,12 @@ const getMenuItems = (userRole: UserRole, t: any): MenuItem[] => {
         //   path: '/school-dashboard/reports',
         // },
         {
+          id: 'attendance-edit-requests',
+          label: t('menu.attendance-edit-requests', 'Attendance Approvals'),
+          icon: ClipboardList,
+          path: '/school-dashboard/attendance-edit-requests',
+        },
+        {
           id: 'school-notifications',
           label: t('menu.school-notifications'),
           icon: Bell,
@@ -272,6 +282,12 @@ const getMenuItems = (userRole: UserRole, t: any): MenuItem[] => {
           label: t('menu.my-classes'),
           icon: Users,
           path: '/teacher-dashboard/my-classes',
+        },
+        {
+          id: 'attendance-register',
+          label: t('menu.attendance-register', 'Attendance Register'),
+          icon: CalendarDays,
+          path: '/teacher-dashboard/attendance',
         },
         {
           id: 'student-forms',
@@ -499,6 +515,7 @@ export function AppRoutes() {
                 <Route path="/reports" element={<SchoolReports />} /> */}
                 <Route path="/settings" element={<SchoolSettings />} />
                 <Route path="/notifications" element={<Notifications />} />
+                <Route path="/attendance-edit-requests" element={<AttendanceEditRequests />} />
                 <Route path="/id-template" element={<IDCardGallery />} />
                 <Route path="/id-preview" element={<IDCardPreview />} />
                 <Route path="/id-editor" element={<EditorPage />} />
@@ -527,6 +544,7 @@ export function AppRoutes() {
               <Routes>
                 <Route path="/" element={<TeacherDashboard />} />
                 <Route path="/my-classes" element={<MyClasses />} />
+                <Route path="/attendance" element={<AttendanceRegister />} />
                 <Route path="/class-students" element={<ClassStudentList />} />
                 <Route path="/student-forms" element={<StudentForms />} />
                 <Route path="/approvals" element={<PendingApprovals />} />
