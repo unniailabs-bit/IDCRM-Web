@@ -248,11 +248,7 @@ export const PrintPreview = (props) => {
                   boxSizing: 'border-box',
                   backgroundColor: 'white',
                   pageBreakInside: 'avoid',
-                  // Cut guide drawn OUTSIDE the card (outline takes no space), so cutting
-                  // along the inner edge of the line yields the exact card size. A border
-                  // here would eat ~0.3mm per side from the printed card.
-                  outline: '0.2mm dashed #9ca3af',
-                  outlineOffset: 0,
+                  // No border/outline: a border would also eat ~0.3mm per side from the printed card
                 }}
               >
                 {/* Render Background Image Layer */}

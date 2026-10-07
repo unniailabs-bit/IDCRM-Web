@@ -1,41 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { FilePlus, Trash2, FolderOpen, X, Check, Edit2 } from 'lucide-react';
+import { FilePlus, Trash2, FolderOpen, X, Check, Edit2, Loader2 } from 'lucide-react';
+import { loadTemplates, saveTemplateRemote, deleteTemplateRemote, normalizeTemplate } from '../templateStorage';
 
-export const TemplateManager = ({ isOpen, onClose, onLoadTemplate, currentTemplateId }) => {
+export const TemplateManager = ({
+  isOpen,
+  onClose,
+  onLoadTemplate,
+  currentTemplateId,
+  onTemplateRenamed,
+}) => {
   const [templates, setTemplates] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      loadTemplates();
+      refresh();
     }
   }, [isOpen]);
 
-  const loadTemplates = () => {
+  const refresh = async () => {
+    setIsLoading(true);
+    setError('');
     try {
-      const saved = localStorage.getItem('id_card_templates');
-      if (saved) {
-        setTemplates(JSON.parse(saved));
-      } else {
-        setTemplates([]);
-      }
+      setTemplates(await loadTemplates());
     } catch (e) {
-      console.error("Failed to load templates", e);
+      console.error('Failed to load templates', e);
+      setError('Could not load templates from the server. Please try again.');
       setTemplates([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleDelete = (id, e) => {
+  const handleDelete = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this template?")) return;
-    
-    const newTemplates = templates.filter(t => t.id !== id);
-    localStorage.setItem('id_card_templates', JSON.stringify(newTemplates));
-    setTemplates(newTemplates);
-    
-    // If we deleted the current template, we might need to handle that parent-side, 
-    // but for now let's just leave the editor as is (it becomes "unsaved" effectively)
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+
+    try {
+      await deleteTemplateRemote(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      // If we deleted the current template the editor keeps it as an unsaved copy;
+      // saving it again recreates it.
+    } catch (err) {
+      console.error('Failed to delete template', err);
+      alert('Failed to delete the template. Please try again.');
+    }
   };
 
   const handleStartEdit = (t, e) => {
@@ -44,34 +56,44 @@ export const TemplateManager = ({ isOpen, onClose, onLoadTemplate, currentTempla
     setEditName(t.name);
   };
 
-  const handleSaveName = (e) => {
+  const handleSaveName = async (e) => {
     e.stopPropagation();
-    const newTemplates = templates.map(t => 
-      t.id === editingId ? { ...t, name: editName, lastModified: Date.now() } : t
-    );
-    localStorage.setItem('id_card_templates', JSON.stringify(newTemplates));
-    setTemplates(newTemplates);
-    setEditingId(null);
+    const name = editName.trim();
+    if (!name) return;
+    const target = templates.find((t) => t.id === editingId);
+    if (!target) return;
+
+    try {
+      const saved = await saveTemplateRemote({ ...target, name });
+      setTemplates((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
+      if (saved.id === currentTemplateId && onTemplateRenamed) onTemplateRenamed(saved.name);
+      setEditingId(null);
+    } catch (err) {
+      console.error('Failed to rename template', err);
+      alert('Failed to rename the template. Please try again.');
+    }
   };
 
-  const handleCreateNew = () => {
-    const name = prompt("Enter name for new template:", "New Template");
-    if (!name) return;
+  const handleCreateNew = async () => {
+    const name = prompt('Enter name for new template:', 'New Template');
+    if (!name || !name.trim()) return;
 
-    const newTemplate = {
-      id: crypto.randomUUID(),
-      name: name,
-      elements: [],
-      orientation: 'horizontal',
-      created: Date.now(),
-      lastModified: Date.now()
-    };
-
-    const newTemplates = [...templates, newTemplate];
-    localStorage.setItem('id_card_templates', JSON.stringify(newTemplates));
-    setTemplates(newTemplates);
-    onLoadTemplate(newTemplate);
-    onClose();
+    try {
+      const saved = await saveTemplateRemote(
+        normalizeTemplate({
+          id: crypto.randomUUID(),
+          name: name.trim(),
+          elements: [],
+          orientation: 'horizontal',
+        })
+      );
+      setTemplates((prev) => [saved, ...prev]);
+      onLoadTemplate(saved);
+      onClose();
+    } catch (err) {
+      console.error('Failed to create template', err);
+      alert('Failed to create the template. Please try again.');
+    }
   };
 
   if (!isOpen) return null;
@@ -90,7 +112,19 @@ export const TemplateManager = ({ isOpen, onClose, onLoadTemplate, currentTempla
         </div>
 
         <div className="p-4 overflow-y-auto flex-1">
-          {templates.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-gray-500">
+              <Loader2 size={18} className="animate-spin" />
+              <span>Loading templates...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-10 text-red-600">
+              <p>{error}</p>
+              <button onClick={refresh} className="mt-3 text-sm text-blue-600 hover:underline">
+                Retry
+              </button>
+            </div>
+          ) : templates.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               <p>No templates found.</p>
               <p className="text-sm mt-2">Create a new one to get started!</p>
@@ -101,7 +135,7 @@ export const TemplateManager = ({ isOpen, onClose, onLoadTemplate, currentTempla
                 <div 
                   key={t.id} 
                   onClick={() => { onLoadTemplate(t); onClose(); }}
-                  className={`p-3 rounded-lg border flex items-center justify-between cursor-pointer transition-all hover:bg-blue-50 hover:border-blue-200 ${currentTemplateId === t.id ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300' : 'border-gray-200 bg-white'}`}
+                  className={`group p-3 rounded-lg border flex items-center justify-between cursor-pointer transition-all hover:bg-blue-50 hover:border-blue-200 ${currentTemplateId === t.id ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300' : 'border-gray-200 bg-white'}`}
                 >
                   <div className="flex-1">
                     {editingId === t.id ? (
@@ -130,7 +164,7 @@ export const TemplateManager = ({ isOpen, onClose, onLoadTemplate, currentTempla
                           </button>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {new Date(t.lastModified).toLocaleDateString()} at {new Date(t.lastModified).toLocaleTimeString()} • {t.orientation}
+                          {new Date(t.lastModified).toLocaleDateString()} at {new Date(t.lastModified).toLocaleTimeString()} • {t.orientation} • {t.cardWidthMm || 85.6}×{t.cardHeightMm || 54} mm
                         </div>
                       </div>
                     )}

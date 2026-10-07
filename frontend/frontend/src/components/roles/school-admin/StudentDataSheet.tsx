@@ -20,6 +20,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 // @ts-ignore
 import { TemplateManager } from './components/TemplateManager';
+import { loadTemplates, normalizeTemplate, getActiveTemplateId } from './templateStorage';
 // @ts-ignore
 import { PrintPreview } from './components/PrintPreview';
 import { CustomDialog } from '../teacher/CustomDialog';
@@ -561,28 +562,33 @@ export default function StudentDataSheet() {
   //   }, 500);
   // };
 
-  // Load templates from local storage
+  // Load this school's templates from the server
   useEffect(() => {
-    try {
-      const savedTemplates = localStorage.getItem('id_card_templates');
-      const allTemplates = savedTemplates ? JSON.parse(savedTemplates) : [];
-      setAvailableTemplates(allTemplates);
+    let cancelled = false;
 
-      // Try to load the "active" template first (legacy key), or fall back to the first available
-      const savedActive = localStorage.getItem('id_card_template');
-      let activeTemplate = savedActive ? JSON.parse(savedActive) : null;
+    const fetchTemplatesFromServer = async () => {
+      try {
+        const allTemplates = (await loadTemplates()).map(normalizeTemplate);
+        if (cancelled) return;
+        setAvailableTemplates(allTemplates);
 
-      if (activeTemplate) {
-        setTemplate(activeTemplate);
-        setSelectedTemplateId(activeTemplate.id || '');
-      } else if (allTemplates.length > 0) {
-        const defaultT = allTemplates[0];
-        setTemplate(defaultT);
-        setSelectedTemplateId(defaultT.id);
+        // Prefer the template last used in the editor on this device, else the newest one
+        const activeId = getActiveTemplateId();
+        const initial = allTemplates.find((tpl) => tpl.id === activeId) || allTemplates[0];
+        if (initial) {
+          setTemplate(initial);
+          setSelectedTemplateId(initial.id);
+        }
+      } catch (e) {
+        console.error('Failed to load ID card templates', e);
+        if (!cancelled) toast.error('Could not load ID card templates from the server');
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+
+    fetchTemplatesFromServer();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleTemplateChange = (e) => {

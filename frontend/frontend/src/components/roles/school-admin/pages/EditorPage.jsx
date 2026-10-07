@@ -25,6 +25,13 @@ import {
 } from 'lucide-react';
 import { TemplateManager } from '../components/TemplateManager';
 import { CardLayoutSettings } from '../components/CardLayoutSettings';
+import {
+  loadTemplates,
+  saveTemplateRemote,
+  normalizeTemplate,
+  getActiveTemplateId,
+  setActiveTemplateId,
+} from '../templateStorage';
 import { translateBatch } from '../../../../utils/translationService'; // Import translation service
 
 import { defaultTemplate } from '../consts/defaultTemplate';
@@ -255,105 +262,80 @@ export const EditorPage = () => {
   const [referenceOpacity, setReferenceOpacity] = useState(0.5);
 
   const referenceInputRef = useRef(null);
+  const layoutSettingsRef = useRef(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Load logic with Migration
+  // Load this school's templates from the server (older browser-only templates are
+  // moved up automatically the first time).
   useEffect(() => {
-    try {
-      // Check for new system first
-      const templatesJson = localStorage.getItem('id_card_templates');
-      let templates = templatesJson ? JSON.parse(templatesJson) : [];
+    let cancelled = false;
 
-      // Check for legacy single template
-      const legacy = localStorage.getItem('id_card_template');
-
-      if (legacy && templates.length === 0) {
-        // Migrate legacy to new system
-        const legacyTemplate = JSON.parse(legacy);
-        const migrated = {
-          ...legacyTemplate,
-          id: crypto.randomUUID(),
-          name: t('editor.migratedTemplate'),
-          lastModified: Date.now(),
-        };
-        templates = [migrated];
-        localStorage.setItem('id_card_templates', JSON.stringify(templates));
-        // Optional: localStorage.removeItem('id_card_template');
+    const init = async () => {
+      let chosen = null;
+      try {
+        const templates = await loadTemplates();
+        const activeId = getActiveTemplateId();
+        chosen = templates.find((tpl) => tpl.id === activeId) || templates[0] || null;
+      } catch (e) {
+        console.error('Failed to load templates from server', e);
+        alert(
+          t(
+            'editor.loadFailed',
+            'Could not load your saved templates from the server. Showing a blank template.'
+          )
+        );
       }
+      if (cancelled) return;
 
-      if (templates.length > 0) {
-        // Load the most recently modified or first one
-        const mostRecent = templates.sort((a, b) => b.lastModified - a.lastModified)[0];
-        setTemplate(mostRecent);
-        // Init history
-        setHistory([mostRecent]);
-        setHistoryIndex(0);
-      } else {
-        // Load default
-        const newDefault = {
+      const initial = normalizeTemplate(
+        chosen || {
           ...defaultTemplate,
           id: crypto.randomUUID(),
           name: t('editor.defaultTemplate'),
           lastModified: Date.now(),
-        };
-        setTemplate(newDefault);
-        // Init history
-        setHistory([newDefault]);
-        setHistoryIndex(0);
-        // Save it immediately so user has something? No, let them save manually or create new.
-      }
-    } catch (e) {
-      console.error(e);
-      setTemplate({
-        ...defaultTemplate,
-        id: crypto.randomUUID(),
-        name: t('editor.newTemplate')
-      });
-    }
+        }
+      );
+      setTemplate(initial);
+      setHistory([initial]);
+      setHistoryIndex(0);
+      if (chosen) setActiveTemplateId(chosen.id);
+    };
+
+    init();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const saveTemplate = () => {
+  // Current template including any card size / layout edits still pending in the popup
+  const getCurrentTemplate = () => {
+    const pendingLayout = layoutSettingsRef.current?.flush();
+    return normalizeTemplate({ ...template, ...pendingLayout });
+  };
+
+  const saveTemplate = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
-      const templatesJson = localStorage.getItem('id_card_templates');
-      let templates = templatesJson ? JSON.parse(templatesJson) : [];
+      const current = getCurrentTemplate();
+      const saved = await saveTemplateRemote({ ...current, id: current.id || crypto.randomUUID() });
 
-      const currentId = template.id || crypto.randomUUID();
-      const now = Date.now();
-
-      const templateToSave = {
-        ...template,
-        id: currentId,
-        lastModified: now,
-      };
-
-      const existingIndex = templates.findIndex((t) => t.id === currentId);
-
-      if (existingIndex >= 0) {
-        templates[existingIndex] = templateToSave;
-      } else {
-        templates.push(templateToSave);
-      }
-
-      localStorage.setItem('id_card_templates', JSON.stringify(templates));
-
-      // Also update local state to reflect ID if it was new
-      setTemplate(templateToSave);
-
-      // Also save to legacy key for backwards compatibility with StudentListPage if needed
-      localStorage.setItem('id_card_template', JSON.stringify(templateToSave)); // Legacy for print page
+      // Only take server-assigned fields so edits made while saving aren't overwritten
+      setTemplate((prev) => ({ ...prev, id: saved.id, lastModified: saved.lastModified }));
+      setActiveTemplateId(saved.id);
 
       alert(t('editor.saveSuccess'));
     } catch (e) {
       console.error(e);
       alert(t('editor.saveFailed'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const loadTemplate = (t) => {
-    updateTemplate(t, true);
-    // Update legacy key so print preview (if running in separate tab) might see it could be tricky?
-    // Actually StudentListPage loads from 'id_card_template'.
-    // We should probably update 'id_card_template' whenever we switch active template so the print page sees it.
-    localStorage.setItem('id_card_template', JSON.stringify(t));
+  const loadTemplate = (tpl) => {
+    updateTemplate(normalizeTemplate(tpl), true);
+    setActiveTemplateId(tpl.id); // the Student Data sheet opens this template next
   };
 
   const addElement = (tool) => {
@@ -455,7 +437,8 @@ export const EditorPage = () => {
   const fileInputRef = useRef(null);
 
   const exportTemplate = () => {
-    const dataStr = JSON.stringify(template, null, 2);
+    const current = getCurrentTemplate();
+    const dataStr = JSON.stringify(current, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
     const exportFileDefaultName = `${template.name.replace(/\s/g, '_') || 'id_card_template'}.json`;
@@ -473,7 +456,7 @@ export const EditorPage = () => {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const json = JSON.parse(e.target.result);
 
@@ -489,14 +472,16 @@ export const EditorPage = () => {
           if (newName === null) return; // User cancelled import
 
           // Ensure orientation exists, default to horizontal if missing
-          const validTemplate = {
+          // normalizeTemplate keeps the imported card size / layout (and fills in defaults
+          // for files exported before those existed)
+          const validTemplate = normalizeTemplate({
             ...json, // Keep other props if imported
             elements: json.elements,
             orientation: json.orientation || 'horizontal',
             name: newName || defaultName,
             id: crypto.randomUUID(), // Always new ID for import to simplify
             lastModified: Date.now(),
-          };
+          });
 
           updateTemplate(validTemplate, true);
 
@@ -507,11 +492,9 @@ export const EditorPage = () => {
             )
 
           ) {
-            const templatesJson = localStorage.getItem('id_card_templates');
-            let templates = templatesJson ? JSON.parse(templatesJson) : [];
-            templates.push(validTemplate);
-            localStorage.setItem('id_card_templates', JSON.stringify(templates));
-            localStorage.setItem('id_card_template', JSON.stringify(validTemplate)); // Update legacy
+            const saved = await saveTemplateRemote(validTemplate);
+            setTemplate((prev) => ({ ...prev, id: saved.id, lastModified: saved.lastModified }));
+            setActiveTemplateId(saved.id);
           }
         } else {
           alert(t('editor.importInvalidFormat'));
@@ -716,7 +699,7 @@ export const EditorPage = () => {
           </div>
 
           {/* Card Size & Cards per Page */}
-          <CardLayoutSettings template={template} onUpdateTemplate={updateTemplate} />
+          <CardLayoutSettings ref={layoutSettingsRef} template={template} onUpdateTemplate={updateTemplate} />
 
           {/* Zoom */}
           <div className="flex items-center h-8 bg-gray-100 rounded-md p-0.5">
@@ -812,6 +795,7 @@ export const EditorPage = () => {
 
           <button
             onClick={saveTemplate}
+            disabled={isSaving}
             className="flex items-center gap-1.5 h-8 px-3 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
             <Save size={15} />
@@ -937,6 +921,7 @@ export const EditorPage = () => {
         onClose={() => setIsTemplateManagerOpen(false)}
         onLoadTemplate={loadTemplate}
         currentTemplateId={template.id}
+        onTemplateRenamed={(name) => setTemplate((prev) => ({ ...prev, name }))}
       />
 
       {/* Hidden Inputs */}
