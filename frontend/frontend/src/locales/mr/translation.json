@@ -30,7 +30,9 @@
         "fees": "शुल्क व्यवस्थापन",
         "school-notifications": "सूचना",
         "school-settings": "सेटिंग्ज",
-        "inquiries": "चौकशी तपशील"
+        "inquiries": "चौकशी तपशील",
+        "attendance-register": "हजेरी रजिस्टर",
+        "attendance-edit-requests": "हजेरी मंजुरी"
     },
     "roles": {
         "platform-admin": "अॅडमिन",

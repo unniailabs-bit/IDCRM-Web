@@ -30,7 +30,9 @@
         "fees": "Fees Management",
         "school-notifications": "Notifications",
         "school-settings": "Settings",
-        "inquiries": "Inquiry Details"
+        "inquiries": "Inquiry Details",
+        "attendance-register": "Attendance Register",
+        "attendance-edit-requests": "Attendance Approvals"
     },
     "roles": {
         "platform-admin": "Admin",

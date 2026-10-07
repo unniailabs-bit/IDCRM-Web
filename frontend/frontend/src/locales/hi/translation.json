@@ -30,7 +30,9 @@
         "fees": "शुल्क प्रबंधन",
         "school-notifications": "सूचनाएं",
         "school-settings": "सेटिंग्स",
-        "inquiries": "पूछताछ विवरण"
+        "inquiries": "पूछताछ विवरण",
+        "attendance-register": "उपस्थिति रजिस्टर",
+        "attendance-edit-requests": "उपस्थिति अनुमोदन"
     },
     "roles": {
         "platform-admin": "एडमिन",
