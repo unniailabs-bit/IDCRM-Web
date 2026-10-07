@@ -3,6 +3,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +28,10 @@ import {
   Trash2,
   Edit2,
   Calendar as CalendarIcon,
+  UserCheck,
+  UserX,
+  CheckCircle2,
+  CalendarCheck,
 } from 'lucide-react';
 import { format, parseISO, isSameDay, isSameMonth } from 'date-fns';
 import { calendarService, CalendarEvent } from '@/api/calendarService';
@@ -45,8 +50,8 @@ export function HolidayCalendar() {
 
   const [title, setTitle] = useState('');
   const [type, setType] = useState<'HOLIDAY' | 'EVENT' | 'EXAM'>('HOLIDAY');
-
   const [eventDate, setEventDate] = useState('');
+  const [isAttendanceRequired, setIsAttendanceRequired] = useState(false);
 
   // Delete Range State
   const [deleteRangeOpen, setDeleteRangeOpen] = useState(false);
@@ -67,10 +72,10 @@ export function HolidayCalendar() {
     mutationFn: calendarService.createEvent,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
-      toast.success(t('holidayCalendar.toastEventAdded'));
+      toast.success(t('holidayCalendar.toastEventAdded', 'Event added successfully'));
       handleClose();
     },
-    onError: () => toast.error(t('holidayCalendar.toastAddFailed')),
+    onError: () => toast.error(t('holidayCalendar.toastAddFailed', 'Failed to add event')),
   });
 
   const updateMutation = useMutation({
@@ -78,37 +83,37 @@ export function HolidayCalendar() {
       calendarService.updateEvent(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
-      toast.success(t('holidayCalendar.toastEventUpdated'));
+      toast.success(t('holidayCalendar.toastEventUpdated', 'Event updated successfully'));
       handleClose();
     },
-    onError: () => toast.error(t('holidayCalendar.toastUpdateFailed')),
+    onError: () => toast.error(t('holidayCalendar.toastUpdateFailed', 'Failed to update event')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: calendarService.deleteEvent,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
-      toast.success(t('holidayCalendar.toastEventDeleted'));
+      toast.success(t('holidayCalendar.toastEventDeleted', 'Event deleted successfully'));
     },
-    onError: () => toast.error(t('holidayCalendar.toastDeleteFailed')),
+    onError: () => toast.error(t('holidayCalendar.toastDeleteFailed', 'Failed to delete event')),
   });
 
   const deleteRangeMutation = useMutation({
     mutationFn: calendarService.deleteRange,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
-      toast.success(t('holidayCalendar.toastRangeDeleted'));
+      toast.success(t('holidayCalendar.toastRangeDeleted', 'Range deleted successfully'));
       setDeleteRangeOpen(false);
       setRangeStart('');
       setRangeEnd('');
       setRangeType('HOLIDAY');
     },
-    onError: () => toast.error(t('holidayCalendar.toastRangeDeleteFailed')),
+    onError: () => toast.error(t('holidayCalendar.toastRangeDeleteFailed', 'Failed to delete range')),
   });
 
   const handleSave = () => {
     if (!title || !eventDate) {
-      toast.error(t('holidayCalendar.toastTitleDateRequired'));
+      toast.error(t('holidayCalendar.toastTitleDateRequired', 'Title and date are required'));
       return;
     }
 
@@ -118,22 +123,32 @@ export function HolidayCalendar() {
     );
 
     if (isCollision) {
-      toast.error(t('holidayCalendar.toastOneEventPerDay'));
+      toast.error(t('holidayCalendar.toastOneEventPerDay', 'An event already exists on this date'));
       return;
     }
 
     if (editingEvent?.id) {
       updateMutation.mutate({
         id: editingEvent.id,
-        data: { title, type, calendar_date: eventDate },
+        data: {
+          title,
+          type,
+          calendar_date: eventDate,
+          is_attendance_required: isAttendanceRequired,
+        },
       });
     } else {
-      createMutation.mutate({ title, type, calendar_date: eventDate });
+      createMutation.mutate({
+        title,
+        type,
+        calendar_date: eventDate,
+        is_attendance_required: isAttendanceRequired,
+      });
     }
   };
 
   const handleDelete = (id?: string) => {
-    if (!id || !window.confirm(t('holidayCalendar.confirmDeleteEvent'))) return;
+    if (!id || !window.confirm(t('holidayCalendar.confirmDeleteEvent', 'Are you sure you want to delete this event?'))) return;
     deleteMutation.mutate(id);
   };
 
@@ -142,7 +157,28 @@ export function HolidayCalendar() {
     setTitle(event.title);
     setType(event.type);
     setEventDate(event.calendar_date);
+    setIsAttendanceRequired(Boolean(event.is_attendance_required));
     setOpen(true);
+  };
+
+  const handleToggleAttendance = (event: CalendarEvent) => {
+    if (!event.id) return;
+    const nextState = !event.is_attendance_required;
+    updateMutation.mutate(
+      {
+        id: event.id,
+        data: { is_attendance_required: nextState },
+      },
+      {
+        onSuccess: () => {
+          if (nextState) {
+            toast.success(`Deselected holiday on ${event.calendar_date}: Marked as Regular Attendance Day`);
+          } else {
+            toast.info(`Marked ${event.calendar_date} as School Closed Holiday`);
+          }
+        },
+      }
+    );
   };
 
   const handleClose = () => {
@@ -150,6 +186,7 @@ export function HolidayCalendar() {
     setEditingEvent(null);
     setTitle('');
     setType('HOLIDAY');
+    setIsAttendanceRequired(false);
   };
 
   const monthEvents = useMemo(
@@ -164,6 +201,7 @@ export function HolidayCalendar() {
     () => ({
       total: events.length,
       holidays: events.filter((e) => e.type === 'HOLIDAY').length,
+      attendanceHolidays: events.filter((e) => e.type === 'HOLIDAY' && e.is_attendance_required).length,
       exams: events.filter((e) => e.type === 'EXAM').length,
       events: events.filter((e) => e.type === 'EVENT').length,
     }),
@@ -175,8 +213,8 @@ export function HolidayCalendar() {
       {/* HEADER */}
       <div className="flex-none flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">{t('holidayCalendar.title')}</h1>
-          <p className="text-sm text-gray-500">{t('holidayCalendar.subtitle')}</p>
+          <h1 className="text-2xl font-bold">{t('holidayCalendar.title', 'Holiday & Event Calendar')}</h1>
+          <p className="text-sm text-gray-500">{t('holidayCalendar.subtitle', 'Manage school holidays, events, exams, and attendance days')}</p>
         </div>
 
         <div className="flex gap-2">
@@ -187,7 +225,7 @@ export function HolidayCalendar() {
             onClick={() => setDeleteRangeOpen(true)}
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            {t('holidayCalendar.deleteRange')}
+            {t('holidayCalendar.deleteRange', 'Delete Range')}
           </Button>
 
           <Button
@@ -204,25 +242,27 @@ export function HolidayCalendar() {
                 setEditingEvent(null);
                 setTitle('');
                 setType('HOLIDAY');
+                setIsAttendanceRequired(false);
                 setOpen(true);
               }
             }}
           >
             <Plus className="h-4 w-4 mr-2" />
-            {t('holidayCalendar.addEvent')}
+            {t('holidayCalendar.addEvent', 'Add Event / Holiday')}
           </Button>
         </div>
       </div>
 
       {/* STATS */}
-      <div className="flex-none grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard title={t('holidayCalendar.statTotal')} value={stats.total} icon={CalendarDays} />
-        <StatCard title={t('holidayCalendar.statHolidays')} value={stats.holidays} icon={Flag} />
-        <StatCard title={t('holidayCalendar.statExams')} value={stats.exams} icon={BookOpen} />
-        <StatCard title={t('holidayCalendar.statEvents')} value={stats.events} icon={CalendarDays} />
+      <div className="flex-none grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatCard title={t('holidayCalendar.statTotal', 'Total Entries')} value={stats.total} icon={CalendarDays} />
+        <StatCard title={t('holidayCalendar.statHolidays', 'Holidays')} value={stats.holidays} icon={Flag} />
+        <StatCard title={t('holidayCalendar.statAttendanceDays', 'Working Holidays')} value={stats.attendanceHolidays} icon={UserCheck} />
+        <StatCard title={t('holidayCalendar.statExams', 'Exams')} value={stats.exams} icon={BookOpen} />
+        <StatCard title={t('holidayCalendar.statEvents', 'Events')} value={stats.events} icon={CalendarDays} />
       </div>
 
-      {/* MAIN LAYOUT - Scaled to fit remaining height */}
+      {/* MAIN LAYOUT */}
       <div className="flex-1 min-h-0 grid sm:grid-cols-1 md:grid-cols-12 gap-4">
         {/* LEFT - EVENTS FOR MONTH (4/12) */}
         <div className="order-2 sm:col-span-1 md:col-span-4 h-[70dvh]">
@@ -232,69 +272,105 @@ export function HolidayCalendar() {
                 {format(month, 'MMMM yyyy')}
               </CardTitle>
               <CardDescription className="text-green-600 font-medium italic text-xs">
-                {t('holidayCalendar.scheduleForMonth')}
+                {t('holidayCalendar.scheduleForMonth', 'Schedule for selected month')}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0 flex-1 overflow-y-auto">
-              <div className="p-3 space-y-2 custom-scrollbar">
+              <div className="p-3 space-y-2.5 custom-scrollbar">
                 {monthEvents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                     <CalendarIcon className="h-10 w-10 mb-2 opacity-20" />
-                    <p className="text-sm font-medium">{t('holidayCalendar.noEventsForMonth')}</p>
+                    <p className="text-sm font-medium">{t('holidayCalendar.noEventsForMonth', 'No events for this month')}</p>
                   </div>
                 ) : (
-                  monthEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="group flex gap-3 p-2 rounded-lg border border-gray-100 bg-white hover:border-green-200 hover:shadow-sm transition-all"
-                    >
-                      {/* Date Box */}
+                  monthEvents.map((event) => {
+                    const isWorkingHoliday = Boolean(event.is_attendance_required);
+                    return (
                       <div
-                        className={`flex flex-col items-center justify-center min-w-[45px] p-1.5 rounded-lg ${event.type === 'HOLIDAY'
-                            ? 'bg-red-50 text-red-600'
-                            : event.type === 'EXAM'
-                              ? 'bg-orange-50 text-orange-600'
-                              : 'bg-blue-50 text-blue-600'
+                        key={event.id}
+                        className={`group flex items-center gap-3 p-2.5 rounded-xl border transition-all ${isWorkingHoliday
+                            ? 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300 shadow-xs'
+                            : 'border-gray-100 bg-white hover:border-green-200 hover:shadow-sm'
                           }`}
                       >
-                        <span className="text-[10px] font-bold uppercase">
-                          {format(parseISO(event.calendar_date), 'MMM')}
-                        </span>
-                        <span className="text-base font-bold leading-none">
-                          {format(parseISO(event.calendar_date), 'dd')}
-                        </span>
-                      </div>
+                        {/* Date Box */}
+                        <div
+                          className={`flex flex-col items-center justify-center min-w-[48px] p-2 rounded-lg ${isWorkingHoliday
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : event.type === 'HOLIDAY'
+                                ? 'bg-red-50 text-red-600'
+                                : event.type === 'EXAM'
+                                  ? 'bg-orange-50 text-orange-600'
+                                  : 'bg-blue-50 text-blue-600'
+                            }`}
+                        >
+                          <span className="text-[10px] font-bold uppercase">
+                            {format(parseISO(event.calendar_date), 'MMM')}
+                          </span>
+                          <span className="text-base font-bold leading-none">
+                            {format(parseISO(event.calendar_date), 'dd')}
+                          </span>
+                        </div>
 
-                      {/* Event Details */}
-                      <div className="flex-1 min-w-0 py-0.5">
-                        <p className="font-bold text-gray-800 text-sm truncate">{event.title}</p>
-                        <div className="flex items-center justify-between mt-1">
-                          <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-medium">
-                            {event.type}
-                          </Badge>
-
-                          <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-gray-400 hover:text-green-600"
-                              onClick={() => handleEdit(event)}
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-gray-400 hover:text-red-600"
-                              onClick={() => handleDelete(event.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                        {/* Event Details */}
+                        <div className="flex-1 min-w-0 py-0.5">
+                          <p className="font-bold text-gray-800 text-sm truncate">{event.title}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            <Badge variant="secondary" className="text-[10px] px-1.5 h-4 font-medium">
+                              {event.type}
+                            </Badge>
+                            {isWorkingHoliday ? (
+                              <Badge className="text-[10px] px-1.5 h-4 bg-emerald-600 text-white font-semibold">
+                                <UserCheck className="w-2.5 h-2.5 mr-1" />
+                                Regular Attendance Day
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] px-1.5 h-4 text-slate-500 border-slate-200">
+                                School Closed
+                              </Badge>
+                            )}
                           </div>
                         </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 ${isWorkingHoliday
+                                ? 'text-emerald-700 bg-emerald-100 hover:bg-emerald-200'
+                                : 'text-gray-400 hover:text-emerald-600 hover:bg-emerald-50'
+                              }`}
+                            title={
+                              isWorkingHoliday
+                                ? 'Deselect Attendance: Mark as Closed Holiday'
+                                : 'Select Holiday for Activities: Count as Regular Attendance Day'
+                            }
+                            onClick={() => handleToggleAttendance(event)}
+                          >
+                            {isWorkingHoliday ? <UserCheck className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
+                          </Button>
+
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-gray-400 hover:text-green-600"
+                            onClick={() => handleEdit(event)}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-gray-400 hover:text-red-600"
+                            onClick={() => handleDelete(event.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </CardContent>
@@ -328,6 +404,7 @@ export function HolidayCalendar() {
                       setEditingEvent(null);
                       setTitle('');
                       setType('HOLIDAY');
+                      setIsAttendanceRequired(false);
                     }
                   }}
                   onMonthChange={setMonth}
@@ -366,13 +443,15 @@ export function HolidayCalendar() {
                             {dayEvents.map((ev, i) => (
                               <div
                                 key={i}
-                                className={`h-1.5 w-1.5 md:h-2 md:w-2 rounded-full ${ev.type === 'HOLIDAY'
-                                    ? 'bg-red-500'
-                                    : ev.type === 'EXAM'
-                                      ? 'bg-orange-500'
-                                      : 'bg-blue-500'
+                                className={`h-2 w-2 rounded-full ${ev.is_attendance_required
+                                    ? 'bg-emerald-500 ring-2 ring-emerald-200'
+                                    : ev.type === 'HOLIDAY'
+                                      ? 'bg-red-500'
+                                      : ev.type === 'EXAM'
+                                        ? 'bg-orange-500'
+                                        : 'bg-blue-500'
                                   }`}
-                                title={ev.title}
+                                title={`${ev.title}${ev.is_attendance_required ? ' (Regular Attendance Day)' : ' (School Closed)'}`}
                               />
                             ))}
                           </div>
@@ -389,56 +468,83 @@ export function HolidayCalendar() {
 
       {/* ADD/EDIT EVENT MODAL */}
       <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingEvent ? t('holidayCalendar.editEvent') : t('holidayCalendar.addEventTitle')}
+            <DialogTitle className="text-lg font-bold">
+              {editingEvent ? t('holidayCalendar.editEvent', 'Edit Calendar Entry') : t('holidayCalendar.addEventTitle', 'Add Calendar Entry')}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('holidayCalendar.eventTitle')}</label>
+              <label className="text-sm font-medium">{t('holidayCalendar.eventTitle', 'Title / Event Name')}</label>
               <Input
-                placeholder={t('holidayCalendar.enterTitle')}
+                placeholder={t('holidayCalendar.enterTitle', 'e.g. Independence Day, Annual Sports Day')}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                className="rounded-xl"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('holidayCalendar.category')}</label>
-              <Select value={type} onValueChange={(v: any) => setType(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('holidayCalendar.selectType')} />
+              <label className="text-sm font-medium">{t('holidayCalendar.category', 'Category')}</label>
+              <Select value={type} onValueChange={(v: any) => {
+                setType(v);
+                if (v === 'EXAM' || v === 'EVENT') {
+                  setIsAttendanceRequired(true);
+                }
+              }}>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder={t('holidayCalendar.selectType', 'Select type')} />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="HOLIDAY">{t('holidayCalendar.holiday')}</SelectItem>
-                  <SelectItem value="EVENT">{t('holidayCalendar.event')}</SelectItem>
-                  <SelectItem value="EXAM">{t('holidayCalendar.exam')}</SelectItem>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="HOLIDAY">{t('holidayCalendar.holiday', 'Holiday')}</SelectItem>
+                  <SelectItem value="EVENT">{t('holidayCalendar.event', 'Event')}</SelectItem>
+                  <SelectItem value="EXAM">{t('holidayCalendar.exam', 'Exam')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('holidayCalendar.date')}</label>
-              <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+              <label className="text-sm font-medium">{t('holidayCalendar.date', 'Date')}</label>
+              <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="rounded-xl" />
+            </div>
+
+            {/* Attendance Required Toggle for Activities on Holidays */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 gap-3">
+                <div className="space-y-0.5">
+                  <label className="text-sm font-semibold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+                    <UserCheck className="h-4 w-4 text-emerald-600" />
+                    {t('holidayCalendar.attendanceRequired', 'Count as Regular Attendance Day')}
+                  </label>
+                  <p className="text-xs text-slate-500">
+                    {isAttendanceRequired
+                      ? 'Students are called to school for activities. Teachers can mark attendance.'
+                      : 'School closed. Teachers cannot mark attendance on this date.'}
+                  </p>
+                </div>
+                <Switch
+                  checked={isAttendanceRequired}
+                  onCheckedChange={setIsAttendanceRequired}
+                />
+              </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={handleClose}>
-              {t('holidayCalendar.cancel')}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleClose} className="rounded-xl">
+              {t('holidayCalendar.cancel', 'Cancel')}
             </Button>
             <Button
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 rounded-xl font-bold"
               onClick={handleSave}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
               {(createMutation.isPending || updateMutation.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              {editingEvent ? t('holidayCalendar.update') : t('holidayCalendar.save')}
+              {editingEvent ? t('holidayCalendar.update', 'Update Event') : t('holidayCalendar.save', 'Save Event')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -446,62 +552,64 @@ export function HolidayCalendar() {
 
       {/* DELETE RANGE MODAL */}
       <Dialog open={deleteRangeOpen} onOpenChange={setDeleteRangeOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>{t('holidayCalendar.deleteEventsInRange')}</DialogTitle>
+            <DialogTitle>{t('holidayCalendar.deleteEventsInRange', 'Delete Events in Range')}</DialogTitle>
             <CardDescription>
-              {t('holidayCalendar.deleteRangeDesc')}
+              {t('holidayCalendar.deleteRangeDesc', 'Remove all calendar events of specified type within date range')}
             </CardDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('holidayCalendar.startDate')}</label>
+                <label className="text-sm font-medium">{t('holidayCalendar.startDate', 'Start Date')}</label>
                 <Input
                   type="date"
                   value={rangeStart}
                   onChange={(e) => setRangeStart(e.target.value)}
+                  className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">{t('holidayCalendar.endDate')}</label>
-                <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
+                <label className="text-sm font-medium">{t('holidayCalendar.endDate', 'End Date')}</label>
+                <Input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} className="rounded-xl" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('holidayCalendar.eventTypeToDelete')}</label>
+              <label className="text-sm font-medium">{t('holidayCalendar.eventTypeToDelete', 'Category to Delete')}</label>
               <Select value={rangeType} onValueChange={(v: any) => setRangeType(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('holidayCalendar.selectType')} />
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder={t('holidayCalendar.selectType', 'Select type')} />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="HOLIDAY">{t('holidayCalendar.holiday')}</SelectItem>
-                  <SelectItem value="EVENT">{t('holidayCalendar.event')}</SelectItem>
-                  <SelectItem value="EXAM">{t('holidayCalendar.exam')}</SelectItem>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="HOLIDAY">{t('holidayCalendar.holiday', 'Holiday')}</SelectItem>
+                  <SelectItem value="EVENT">{t('holidayCalendar.event', 'Event')}</SelectItem>
+                  <SelectItem value="EXAM">{t('holidayCalendar.exam', 'Exam')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteRangeOpen(false)}>
-              {t('holidayCalendar.cancel')}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteRangeOpen(false)} className="rounded-xl">
+              {t('holidayCalendar.cancel', 'Cancel')}
             </Button>
             <Button
               variant="destructive"
+              className="rounded-xl font-bold"
               onClick={() => {
                 if (!rangeStart || !rangeEnd) {
-                  toast.error(t('holidayCalendar.toastSelectDates'));
+                  toast.error(t('holidayCalendar.toastSelectDates', 'Please select start and end dates'));
                   return;
                 }
                 if (new Date(rangeStart) > new Date(rangeEnd)) {
-                  toast.error(t('holidayCalendar.toastStartDateAfterEnd'));
+                  toast.error(t('holidayCalendar.toastStartDateAfterEnd', 'Start date cannot be after end date'));
                   return;
                 }
                 if (
-                  window.confirm(t('holidayCalendar.confirmDeleteRange'))
+                  window.confirm(t('holidayCalendar.confirmDeleteRange', 'Are you sure you want to delete all events in this range?'))
                 ) {
                   deleteRangeMutation.mutate({
                     start_date: rangeStart,
@@ -513,7 +621,7 @@ export function HolidayCalendar() {
               disabled={deleteRangeMutation.isPending}
             >
               {deleteRangeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('holidayCalendar.deleteEvents')}
+              {t('holidayCalendar.deleteEvents', 'Delete Events')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -526,14 +634,14 @@ export function HolidayCalendar() {
 
 function StatCard({ title, value, icon: Icon }: any) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-4">
-        <div className="p-2 rounded-lg bg-green-100">
-          <Icon className="h-5 w-5 text-green-600" />
+    <Card className="rounded-xl shadow-xs border-slate-200">
+      <CardContent className="flex items-center gap-3 p-3.5">
+        <div className="p-2 rounded-lg bg-green-100 shrink-0">
+          <Icon className="h-4 w-4 text-green-700" />
         </div>
-        <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-bold">{value}</p>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-500 font-medium truncate">{title}</p>
+          <p className="text-xl font-bold text-slate-800 leading-none mt-0.5">{value}</p>
         </div>
       </CardContent>
     </Card>

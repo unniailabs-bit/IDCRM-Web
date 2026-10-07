@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Ruler, ChevronDown } from 'lucide-react';
 import {
   CARD_WIDTH_MM,
@@ -17,8 +17,13 @@ const parseNum = (raw, min, integer = false) => {
 // Card size + cards-per-page settings, stored on the template so the
 // print preview (editor and student data sheet) uses the same values.
 // Width/height fields show the card as currently oriented (they swap in
-// portrait). Typed values apply automatically when the popover closes.
-export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
+// portrait). Typed values apply automatically after a short pause and when the
+// popover closes. The parent can call ref.flush() (e.g. before saving/exporting) to
+// apply anything still pending and get the final values back.
+export const CardLayoutSettings = forwardRef(function CardLayoutSettings(
+  { template, onUpdateTemplate },
+  ref
+) {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef(null);
 
@@ -45,8 +50,18 @@ export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
   const draftsRef = useRef(drafts);
   draftsRef.current = drafts;
 
+  // Sync drafts when the template changes from outside (orientation, preset, undo, load).
+  // Fields whose typed value already equals the template value are left alone, so an
+  // auto-applied value doesn't rewrite what the user is still typing ("85." stays "85.").
   useEffect(() => {
-    setDrafts(valuesFromTemplate());
+    const fresh = valuesFromTemplate();
+    setDrafts((d) => {
+      const next = { ...d };
+      Object.keys(fresh).forEach((k) => {
+        if (parseFloat(d[k]) !== parseFloat(fresh[k])) next[k] = fresh[k];
+      });
+      return next;
+    });
   }, [layout.widthMm, layout.heightMm, layout.cardsPerPage, gapMm]);
 
   // Layout implied by the current drafts (falls back to saved values for invalid fields)
@@ -60,10 +75,12 @@ export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
     return { w, h, gap, perPage, preview: getPageLayout({ ...template, ...toStored(w, h), cardGapMm: gap, cardsPerPage: perPage }) };
   };
 
-  // Commit all drafts in a single template update (one undo step)
-  const applyDrafts = () => {
+  // Commit all drafts in a single template update (one undo step).
+  // Returns the full set of layout fields as they now are.
+  const applyDrafts = (discardInvalid = false) => {
     const { w, h, gap, perPage } = layoutFromDrafts(draftsRef.current);
     const stored = toStored(w, h);
+    const patch = { ...stored, cardGapMm: gap, cardsPerPage: perPage };
     const changed =
       stored.cardWidthMm !== storedW ||
       stored.cardHeightMm !== storedH ||
@@ -71,14 +88,27 @@ export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
       perPage !== layout.cardsPerPage;
 
     if (changed) {
-      onUpdateTemplate((prev) => ({ ...prev, ...stored, cardGapMm: gap, cardsPerPage: perPage }));
+      onUpdateTemplate((prev) => ({ ...prev, ...patch }));
     } else {
-      setDrafts(valuesFromTemplate()); // nothing to save; discard invalid input
+      if (discardInvalid) setDrafts(valuesFromTemplate()); // nothing to save; drop invalid input
     }
+    return patch;
   };
 
+  useImperativeHandle(ref, () => ({ flush: () => applyDrafts() }));
+
+  // Auto-apply shortly after the user stops typing
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => applyDraftsRef.current(), 600);
+    return () => clearTimeout(timer);
+  }, [drafts, isOpen]);
+
+  const applyDraftsRef = useRef(applyDrafts);
+  applyDraftsRef.current = applyDrafts;
+
   const close = () => {
-    applyDrafts();
+    applyDrafts(true);
     setIsOpen(false);
   };
   const closeRef = useRef(close);
@@ -110,7 +140,7 @@ export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
       if (key === 'perPage' && parseInt(value, 10) > maxPerPage) value = String(maxPerPage);
       setDrafts((d) => ({ ...d, [key]: value }));
     },
-    onKeyDown: (e) => e.key === 'Enter' && applyDrafts(),
+    onKeyDown: (e) => e.key === 'Enter' && applyDrafts(true),
     className:
       'w-full h-8 px-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500',
   });
@@ -200,4 +230,4 @@ export const CardLayoutSettings = ({ template, onUpdateTemplate }) => {
       )}
     </div>
   );
-};
+});

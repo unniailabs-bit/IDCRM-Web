@@ -673,7 +673,7 @@ export function AttendanceEditRequests() {
                                         <th className="py-3.5 px-4">Date</th>
                                         <th className="py-3.5 px-4 text-center">Current → Requested</th>
                                         <th className="py-3.5 px-4">Teacher</th>
-                                        {/* <th className="py-3.5 px-4">Teacher Note</th> */}
+                                        <th className="py-3.5 px-4">Teacher Note</th>
                                         <th className="py-3.5 px-4 text-center">Status</th>
                                         {filterStatus === 'pending' && <th className="py-3.5 px-4 text-center">Actions</th>}
                                         {filterStatus !== 'pending' && <th className="py-3.5 px-4">Admin Note</th>}
@@ -736,7 +736,7 @@ export function AttendanceEditRequests() {
                                                     <div className="text-xs text-slate-400">{r.teacher_email}</div>
                                                 )}
                                             </td>
-                                            {/* <td className="px-4 py-3.5 max-w-[180px]">
+                                            <td className="px-4 py-3.5 max-w-[180px]">
                                                 {r.teacher_note ? (
                                                     <div className="flex items-start gap-1.5">
                                                         <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
@@ -745,7 +745,7 @@ export function AttendanceEditRequests() {
                                                 ) : (
                                                     <span className="text-xs text-slate-400 italic">—</span>
                                                 )}
-                                            </td> */}
+                                            </td>
                                             <td className="px-4 py-3.5 text-center">
                                                 {r.status === 'pending' && (
                                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
@@ -851,6 +851,12 @@ export function AttendanceEditRequests() {
                                                 {STATUS_LABEL[dialogTarget.requested_status]}
                                             </span>
                                         </p>
+                                        {dialogTarget.teacher_note && (
+                                            <p className="text-xs pt-1 border-t border-slate-200/80">
+                                                <span className="font-semibold text-slate-700">Teacher Note:</span>{' '}
+                                                <span className="italic text-slate-600">{dialogTarget.teacher_note}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>

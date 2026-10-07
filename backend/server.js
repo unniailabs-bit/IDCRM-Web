@@ -161,6 +161,7 @@ app.use('/api/trust', trustGeneratedIdsRoutes);
 fetch('http://127.0.0.1:7242/ingest/44e11d4c-cdfa-490a-8592-2061398e4056', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'server.js:117', message: 'registering school auth routes', data: { route: '/api/school/auth', hasRoutes: !!schoolAuthRoutes }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
 // #endregion
 app.use('/api/school/auth', schoolAuthRoutes);
+app.use('/api/school/id-card-templates', require('./backend-school/routes/idCardTemplateRoutes')); // ID card templates per school (mounted before the generic /api/school routers)
 app.use('/api/school/notifications', require('./backend-school/routes/notificationRoutes')); // [NEW] Notification Routes (Moved up)
 app.use('/api/school/calendar', require('./backend-school/routes/schoolCalendarRoutes')); // [NEW] School Calendar Routes
 app.use("/api/school", digitalFormsRoutes);
@@ -182,6 +183,10 @@ app.use('/api/school', schoolLogoRoutes);
 app.use('/api/school', principalSignRoutes);
 app.use("/api/school", studentIDRoutes);
 app.use("/api/school", schoolGenerateIdRoutes);
+app.use("/api/school/student-forms", studentFormRoutes);
+app.use('/api/school/dashboard', schoolDashboardRoutes);
+app.use('/api/school/settings', schoolSettingsRoutes); app.use('/api/school/reports', schoolReportsRoutes);
+app.use('/api/school/info', require('./backend-school/routes/schoolInfoRoutes')); // [NEW] Public School Info Routes
 app.use("/api/school", Schooleditstudentform);
 
 // Teacher
