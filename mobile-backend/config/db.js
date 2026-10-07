@@ -1,5 +1,13 @@
 const { Sequelize } = require('sequelize');
+const pg = require('pg');
 require('dotenv').config();
+
+// pg returns BIGINT (int8, OID 20) as strings by default. The mobile apps expect JSON numbers
+// for ids/counts, so a BIGINT column made the app fail to parse responses. Ids here are far below 2^53.
+pg.types.setTypeParser(20, (value) => {
+  const n = Number(value);
+  return Number.isSafeInteger(n) ? n : value;
+});
 
 // Cloud SQL connection configuration
 const isCloudSQL = process.env.DB_HOST && process.env.DB_HOST.startsWith('/cloudsql/');

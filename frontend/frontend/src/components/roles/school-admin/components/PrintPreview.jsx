@@ -1,6 +1,6 @@
 import React from 'react';
 import { CardElement } from './CardElement';
-import { CARD_WIDTH_MM, CARD_HEIGHT_MM } from '../utils';
+import { getPageLayout, PAGE_MARGIN_MM } from '../utils';
 import { translateBatch } from '../../../../utils/translationService';
 
 // Helper to extract value regardless of translation
@@ -116,8 +116,16 @@ export const PrintPreview = (props) => {
   const dataToPrint = students.length > 0 ? students : [{}];
   const isPortrait = template?.orientation === 'vertical';
 
-  const widthMm = isPortrait ? CARD_HEIGHT_MM : CARD_WIDTH_MM;
-  const heightMm = isPortrait ? CARD_WIDTH_MM : CARD_HEIGHT_MM;
+  const {
+    widthMm,
+    heightMm,
+    pageWidthMm,
+    pageHeightMm,
+    gapMm,
+    columns,
+    rows,
+    cardsPerPage,
+  } = getPageLayout(template);
 
   const [translations, setTranslations] = React.useState({});
 
@@ -195,7 +203,8 @@ export const PrintPreview = (props) => {
         {`
           @media print {
             @page {
-              size: ${isPortrait ? 'landscape' : 'portrait'};
+              /* Explicit A4 so the printer's default paper (e.g. Letter) doesn't trigger fit-to-page scaling */
+              size: A4 ${isPortrait ? 'landscape' : 'portrait'};
               margin: 0mm; /* We handle margins in the container to control exact positioning */
             }
             body {
@@ -206,39 +215,44 @@ export const PrintPreview = (props) => {
       </style>
 
       {dataToPrint.map((student, index) => {
-        const isPageStart = index % 10 === 0;
+        const isPageStart = index % cardsPerPage === 0;
         if (!isPageStart) return null;
 
-        const chunk = dataToPrint.slice(index, index + 10);
+        const chunk = dataToPrint.slice(index, index + cardsPerPage);
 
         return (
           <div
             key={index}
             className="page bg-white mx-auto grid relative"
             style={{
-              width: isPortrait ? '297mm' : '210mm',
-              minHeight: isPortrait ? '210mm' : '297mm',
+              width: `${pageWidthMm}mm`,
+              height: `${pageHeightMm}mm`,
               padding: 0,
               boxSizing: 'border-box',
               placeContent: 'start center',
-              paddingTop: '5mm',
-              gridTemplateColumns: `repeat(${isPortrait ? 5 : 2}, ${widthMm}mm)`,
-              gridTemplateRows: `repeat(${isPortrait ? 2 : 5}, ${heightMm}mm)`,
-              gap: '3mm',
-              breakAfter: 'always',
+              paddingTop: `${PAGE_MARGIN_MM}mm`,
+              gridTemplateColumns: `repeat(${columns}, ${widthMm}mm)`,
+              gridTemplateRows: `repeat(${rows}, ${heightMm}mm)`,
+              gap: `${gapMm}mm`,
+              breakAfter: 'page',
               overflow: 'hidden',
             }}
           >
             {chunk.map((s, i) => (
               <div
                 key={i}
-                className="relative overflow-hidden border border-gray-400 border-dashed"
+                className="relative overflow-hidden"
                 style={{
                   width: `${widthMm}mm`,
                   height: `${heightMm}mm`,
                   boxSizing: 'border-box',
                   backgroundColor: 'white',
                   pageBreakInside: 'avoid',
+                  // Cut guide drawn OUTSIDE the card (outline takes no space), so cutting
+                  // along the inner edge of the line yields the exact card size. A border
+                  // here would eat ~0.3mm per side from the printed card.
+                  outline: '0.2mm dashed #9ca3af',
+                  outlineOffset: 0,
                 }}
               >
                 {/* Render Background Image Layer */}
@@ -353,7 +367,9 @@ export const PrintPreview = (props) => {
                         zIndex: element.style?.zIndex || 1,
                         // Ensure text doesn't get clipped by the absolute wrapper
                         overflow:
-                          element.type === 'text' || element.type === 'field'
+                          element.type === 'text' ||
+                          element.type === 'field' ||
+                          element.type === 'shape' // strokes/shadows sit on the edge
                             ? 'visible'
                             : 'hidden',
                       }}

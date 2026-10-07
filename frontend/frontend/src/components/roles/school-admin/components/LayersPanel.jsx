@@ -145,7 +145,9 @@ export const LayersPanel = ({ elements, selectedId, onSelect, onUpdate, onReorde
                     ? el.field
                       ? el.label || el.field.split('.').pop()
                       : 'Image'
-                    : el.content || el.type}
+                    : el.type === 'shape'
+                      ? el.subType || 'shape'
+                      : el.content || el.type}
                 </div>
               </div>
 

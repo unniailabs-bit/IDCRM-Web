@@ -156,7 +156,19 @@ async function ensureParentAccountSchema() {
   }
 }
 
-ensureParentAccountSchema().finally(() => {
+// Apply pending migrations/*.js so deployed code never runs against an outdated schema
+async function applyMigrations() {
+  try {
+    const { runMigrations } = require("./migrations/run");
+    await runMigrations();
+    console.log("✅ Database migrations up to date");
+  } catch (error) {
+    // Keep serving other features; the failing migration will retry on next start
+    console.error("❌ Database migrations failed:", error.original?.message || error.message || error);
+  }
+}
+
+ensureParentAccountSchema().then(applyMigrations).finally(() => {
   app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
   });
