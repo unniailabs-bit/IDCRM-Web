@@ -136,7 +136,9 @@ exports.getTimetables = async (req, res) => {
 
     // Find all classes assigned to this teacher using teacher_id
     const assigned = await sequelize.query(
-      `SELECT DISTINCT class_id FROM divisions WHERE teacher_id = :teacher_id`,
+      `SELECT DISTINCT class_id FROM divisions WHERE teacher_id = :teacher_id
+       UNION
+       SELECT DISTINCT class_id FROM teacher_subjects WHERE teacher_id = :teacher_id`,
       { replacements: { teacher_id: teacher.id }, type: QueryTypes.SELECT }
     );
     assigned.forEach(a => {

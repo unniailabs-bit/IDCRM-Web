@@ -66,16 +66,28 @@ exports.getSchoolTimetables = async (req, res) => {
     try {
         const teacher = req.teacher;
 
-        // Fetch timetables for the teacher's school that are not deleted
+        // Fetch timetables ONLY for the teacher's assigned classes/divisions
         const timetables = await sequelize.query(
-            `SELECT st.*, c.class_name, d.division_name 
+            `SELECT DISTINCT st.*, c.class_name, d.division_name 
              FROM school_timetables st
              JOIN classes c ON c.id = st.class_id
              JOIN divisions d ON d.id = st.division_id
-             WHERE st.school_id = :school_id AND st.is_deleted = false
+             WHERE st.school_id = :school_id 
+               AND st.is_deleted = false
+               AND (
+                 st.division_id IN (SELECT id FROM divisions WHERE teacher_id = :teacher_id)
+                 OR st.class_id IN (SELECT class_id FROM divisions WHERE teacher_id = :teacher_id)
+                 OR st.division_id IN (SELECT division_id FROM teacher_subjects WHERE teacher_id = :teacher_id)
+                 OR st.class_id IN (SELECT class_id FROM teacher_subjects WHERE teacher_id = :teacher_id)
+                 OR (:teacher_class_id::bigint IS NOT NULL AND st.class_id = :teacher_class_id::bigint)
+               )
              ORDER BY st.created_at DESC`,
             {
-                replacements: { school_id: teacher.school_id },
+                replacements: {
+                    school_id: teacher.school_id,
+                    teacher_id: teacher.id,
+                    teacher_class_id: teacher.class_id || null
+                },
                 type: QueryTypes.SELECT
             }
         );
