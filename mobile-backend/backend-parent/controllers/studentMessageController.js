@@ -136,8 +136,14 @@ exports.getChatHistory = async (req, res) => {
       }
     );
 
+    const [studentStatus] = await sequelize.query(
+      `SELECT messaging_enabled FROM student_forms WHERE id = :student_id`,
+      { replacements: { student_id: student.id }, type: QueryTypes.SELECT }
+    );
+
     return res.json({
       success: true,
+      messaging_enabled: studentStatus ? studentStatus.messaging_enabled !== false : true,
       count: messages.length,
       messages
     });
@@ -219,18 +225,7 @@ exports.sendMessageToTeacher = async (req, res) => {
       { replacements: { student_id: student.id }, type: QueryTypes.SELECT }
     );
 
-    const [existingThread] = await sequelize.query(
-      `SELECT 1 FROM teacher_student_messages
-       WHERE student_id = :student_id AND teacher_id = :teacher_id
-       LIMIT 1`,
-      { replacements: { student_id: student.id, teacher_id }, type: QueryTypes.SELECT }
-    );
-
-    if (
-      studentStatus &&
-      studentStatus.messaging_enabled === false &&
-      !existingThread
-    ) {
+    if (studentStatus && studentStatus.messaging_enabled === false) {
       return res.status(403).json({
         success: false,
         message: "Your messaging feature has been disabled by the teacher"

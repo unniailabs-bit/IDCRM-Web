@@ -198,11 +198,6 @@ exports.replyToStudent = async (req, res) => {
             }
         );
 
-        await sequelize.query(
-            `UPDATE student_forms SET messaging_enabled = true WHERE id = :student_id`,
-            { replacements: { student_id }, type: QueryTypes.UPDATE }
-        );
-
         // --- 🚀 Send Push Notification ---
         (async () => {
             try {
