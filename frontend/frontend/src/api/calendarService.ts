@@ -17,6 +17,12 @@ export const calendarService = {
     return response.data;
   },
 
+  // Replace recurring holiday days for the selected year
+  saveRecurringHolidays: async (data: { year: number; weekdays: number[]; title?: string }) => {
+    const response = await axiosInstance.post('/api/school/calendar/recurring-holidays', data);
+    return response.data;
+  },
+
   // Get all events for a school (optionally filter by date range if needed, but usually fetches all or by month)
   // Assuming backend handles filtering or returns all for the year
   getEvents: async (schoolId: string | number) => {

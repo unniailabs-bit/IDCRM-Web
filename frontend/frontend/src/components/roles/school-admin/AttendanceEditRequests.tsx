@@ -96,13 +96,11 @@ export function AttendanceEditRequests() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | null>(null);
     const [dialogTarget, setDialogTarget] = useState<EditRequest | null>(null);
-    const [adminNote, setAdminNote] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Bulk action dialog
     const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
     const [bulkAction, setBulkAction] = useState<'approve' | 'reject' | null>(null);
-    const [bulkAdminNote, setBulkAdminNote] = useState('');
 
     const today = useMemo(() => {
         const now = new Date();
@@ -236,7 +234,6 @@ export function AttendanceEditRequests() {
     const openSingleAction = (req: EditRequest, action: 'approve' | 'reject') => {
         setDialogTarget(req);
         setDialogAction(action);
-        setAdminNote('');
         setDialogOpen(true);
     };
 
@@ -246,7 +243,7 @@ export function AttendanceEditRequests() {
         try {
             await axios.patch(
                 `${BACKEND_URL}/api/school/attendance-edit-requests/${dialogTarget.id}/${dialogAction}`,
-                { admin_note: adminNote },
+                {},
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             toast.success(
@@ -270,7 +267,6 @@ export function AttendanceEditRequests() {
             return;
         }
         setBulkAction(action);
-        setBulkAdminNote('');
         setBulkDialogOpen(true);
     };
 
@@ -280,7 +276,7 @@ export function AttendanceEditRequests() {
         try {
             await axios.post(
                 `${BACKEND_URL}/api/school/attendance-edit-requests/bulk-review`,
-                { ids: [...selectedIds], action: bulkAction, admin_note: bulkAdminNote },
+                { ids: [...selectedIds], action: bulkAction },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             toast.success(
@@ -676,7 +672,6 @@ export function AttendanceEditRequests() {
                                         <th className="py-3.5 px-4">Teacher Note</th>
                                         <th className="py-3.5 px-4 text-center">Status</th>
                                         {filterStatus === 'pending' && <th className="py-3.5 px-4 text-center">Actions</th>}
-                                        {filterStatus !== 'pending' && <th className="py-3.5 px-4">Admin Note</th>}
                                         {filterStatus !== 'pending' && <th className="py-3.5 px-4">Reviewed At</th>}
                                     </tr>
                                 </thead>
@@ -790,20 +785,11 @@ export function AttendanceEditRequests() {
                                                 </td>
                                             )}
 
-                                            {/* Admin note & reviewed at (non-pending view) */}
+                                            {/* Reviewed at (non-pending view) */}
                                             {filterStatus !== 'pending' && (
-                                                <>
-                                                    <td className="px-4 py-3.5 max-w-[160px]">
-                                                        {r.admin_note ? (
-                                                            <span className="text-xs text-slate-600 line-clamp-2">{r.admin_note}</span>
-                                                        ) : (
-                                                            <span className="text-xs text-slate-400 italic">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3.5 text-xs text-slate-500">
-                                                        {formatDateTime(r.reviewed_at)}
-                                                    </td>
-                                                </>
+                                                <td className="px-4 py-3.5 text-xs text-slate-500">
+                                                    {formatDateTime(r.reviewed_at)}
+                                                </td>
                                             )}
                                         </tr>
                                     ))}
@@ -862,18 +848,6 @@ export function AttendanceEditRequests() {
                             </div>
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-                            Admin Note (optional)
-                        </label>
-                        <textarea
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
-                            rows={3}
-                            placeholder="Add a note for the teacher..."
-                            value={adminNote}
-                            onChange={(e) => setAdminNote(e.target.value)}
-                        />
-                    </div>
                     <DialogFooter className="gap-2">
                         <Button
                             variant="outline"
@@ -925,18 +899,6 @@ export function AttendanceEditRequests() {
                                 : 'This will reject all selected requests.'}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-                            Admin Note (optional)
-                        </label>
-                        <textarea
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
-                            rows={3}
-                            placeholder="Add a note for all selected requests..."
-                            value={bulkAdminNote}
-                            onChange={(e) => setBulkAdminNote(e.target.value)}
-                        />
-                    </div>
                     <DialogFooter className="gap-2">
                         <Button
                             variant="outline"

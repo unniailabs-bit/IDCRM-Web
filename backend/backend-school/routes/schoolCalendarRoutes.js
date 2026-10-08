@@ -5,12 +5,14 @@ const {
     getCalendarEvents,
     updateCalendarEvent,
     deleteCalendarEvent,
-    deleteCalendarEventsByRange
+    deleteCalendarEventsByRange,
+    replaceRecurringHolidayDays
 } = require('../controllers/schoolCalendarController');
 const { verifySchoolAdmin } = require('../middleware/authMiddleware');
 
 // Create Calendar Event (Single or Multiple)
 router.post('/create', verifySchoolAdmin, createCalendarEvent);
+router.post('/recurring-holidays', verifySchoolAdmin, replaceRecurringHolidayDays);
 
 // Get Calendar Events (with optional filters: type, month, year, is_active)
 router.get('/', verifySchoolAdmin, getCalendarEvents);

@@ -462,6 +462,71 @@ exports.deleteCalendarEvent = async (req, res) => {
     }
 };
 
+exports.replaceRecurringHolidayDays = async (req, res) => {
+    try {
+        const school_id = req.user?.school_id;
+        const { year, weekdays, title = "School Holiday" } = req.body;
+
+        if (!school_id) {
+            return res.status(401).json({ success: false, message: "Unauthorized." });
+        }
+
+        if (!Number.isInteger(year) || year < 2000) {
+            return res.status(400).json({ success: false, message: "A valid year is required." });
+        }
+
+        if (!Array.isArray(weekdays) || weekdays.length === 0 || weekdays.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) {
+            return res.status(400).json({ success: false, message: "Weekdays must be an array of 0-6." });
+        }
+
+        const uniqueWeekdays = [...new Set(weekdays)];
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+        const datePlaceholder = uniqueWeekdays.map((_, index) => `:weekday_${index}`).join(", ");
+
+        const transaction = await sequelize.transaction();
+
+        await sequelize.query(
+            `DELETE FROM school_calendar
+             WHERE school_id = :school_id
+               AND type = 'HOLIDAY'
+               AND title = :title
+               AND calendar_date BETWEEN :startDate AND :endDate`,
+            {
+                replacements: { school_id, title, startDate, endDate },
+                transaction,
+                type: QueryTypes.DELETE,
+            }
+        );
+
+        await sequelize.query(
+            `INSERT INTO school_calendar (school_id, type, title, calendar_date, is_attendance_required, created_by, created_at, updated_at)
+             SELECT :school_id, 'HOLIDAY', :title, d::date, false, :created_by, NOW(), NOW()
+             FROM generate_series(:startDate::date, :endDate::date, INTERVAL '1 day') AS d
+             WHERE EXTRACT(DOW FROM d) IN (${datePlaceholder})`,
+            {
+                replacements: { school_id, title, startDate, endDate, created_by: req.user.id, ...Object.fromEntries(uniqueWeekdays.map((day, index) => [`weekday_${index}`, day])) },
+                transaction,
+                type: QueryTypes.INSERT,
+            }
+        );
+
+        await transaction.commit();
+
+        return res.status(200).json({
+            success: true,
+            message: `Saved recurring holidays for ${year}`,
+            weekdays: uniqueWeekdays,
+        });
+    } catch (error) {
+        console.error("Replace Recurring Holiday Days Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to save recurring holiday days",
+        });
+    }
+};
+
 
 // -------------------- Delete Calendar Events by Range --------------------
 exports.deleteCalendarEventsByRange = async (req, res) => {

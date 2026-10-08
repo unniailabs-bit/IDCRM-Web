@@ -14,7 +14,7 @@ exports.getEditRequests = async (req, res) => {
             return res.status(401).json({ success: false, message: "Unauthorized: School ID not found in session" });
         }
 
-        const { status = 'pending', class_id, division_id, month } = req.query;
+        const { status = 'all', class_id, division_id, month } = req.query;
 
         let filters = `aer.school_id = :schoolId`;
         const replacements = { schoolId };

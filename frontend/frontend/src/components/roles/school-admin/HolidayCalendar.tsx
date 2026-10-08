@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ export function HolidayCalendar() {
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [month, setMonth] = useState(new Date());
+  const [selectedWeekdays, setSelectedWeekdays] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
@@ -68,6 +69,35 @@ export function HolidayCalendar() {
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
+  useEffect(() => {
+    const currentYear = new Date().getFullYear();
+    const savedWeekdays = new Set<number>();
+
+    events.forEach((event) => {
+      if (event.type !== 'HOLIDAY' || event.title !== 'School Holiday' || !event.calendar_date.startsWith(`${currentYear}-`)) return;
+      const eventDate = new Date(`${event.calendar_date}T00:00:00`);
+      if (!Number.isNaN(eventDate.getTime())) savedWeekdays.add(eventDate.getDay());
+    });
+
+    setSelectedWeekdays(savedWeekdays);
+  }, [events]);
+
+  const saveSelectedWeekdays = () => {
+    if (selectedWeekdays.size === 0) {
+      toast.error('Select at least one holiday day');
+      return;
+    }
+
+    const currentYear = new Date().getFullYear();
+    const weekdays = [...selectedWeekdays].sort((a, b) => a - b);
+
+    recurringHolidayMutation.mutate({
+      year: currentYear,
+      weekdays,
+      title: 'School Holiday',
+    });
+  };
+
   const createMutation = useMutation({
     mutationFn: calendarService.createEvent,
     onSuccess: () => {
@@ -77,7 +107,14 @@ export function HolidayCalendar() {
     },
     onError: () => toast.error(t('holidayCalendar.toastAddFailed', 'Failed to add event')),
   });
-
+  const recurringHolidayMutation = useMutation({
+    mutationFn: calendarService.saveRecurringHolidays,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendarEvents'] });
+      toast.success(`Saved ${selectedWeekdays.size} holiday days for ${new Date().getFullYear()}`);
+    },
+    onError: () => toast.error('Failed to save selected holiday days'),
+  });
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CalendarEvent> }) =>
       calendarService.updateEvent(id, data),
@@ -171,6 +208,7 @@ export function HolidayCalendar() {
       },
       {
         onSuccess: () => {
+          window.dispatchEvent(new Event('calendarDataChanged'));
           if (nextState) {
             toast.success(`Deselected holiday on ${event.calendar_date}: Marked as Regular Attendance Day`);
           } else {
@@ -211,13 +249,53 @@ export function HolidayCalendar() {
   return (
     <div className="h-dvh bg-gray-100 p-4 flex flex-col gap-4 overflow-auto">
       {/* HEADER */}
-      <div className="flex-none flex justify-between items-center">
+      <div className="flex-none flex justify-between items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold">{t('holidayCalendar.title', 'Holiday & Event Calendar')}</h1>
           <p className="text-sm text-gray-500">{t('holidayCalendar.subtitle', 'Manage school holidays, events, exams, and attendance days')}</p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
+            <CalendarIcon className="h-4 w-4 text-red-600" />
+            <span>Holiday Days</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => {
+                const isSelected = selectedWeekdays.has(index);
+                return (
+                  <label
+                    key={day}
+                    className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold transition-colors ${isSelected ? 'border-red-300 bg-red-50 text-red-700' : 'border-slate-200 bg-slate-50 text-slate-600'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedWeekdays((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(index)) next.delete(index);
+                          else next.add(index);
+                          return next;
+                        });
+                      }}
+                      className="h-3.5 w-3.5 accent-red-600"
+                    />
+                    {day}
+                  </label>
+                );
+              })}
+            </div>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 px-2.5"
+              onClick={saveSelectedWeekdays}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+
           <Button
             variant="destructive"
             className="h-9"
@@ -427,7 +505,7 @@ export function HolidayCalendar() {
                     row: 'flex w-full mt-1 flex-1',
                     cell: 'relative p-0 text-center text-sm focus-within:relative focus-within:z-20 flex-1 h-full',
                     day: 'h-full w-full p-2 font-medium aria-selected:opacity-100 hover:bg-slate-50 rounded-lg transition-colors flex flex-col items-center justify-start border border-transparent hover:border-slate-200',
-                    day_selected: 'bg-green-600! text-white! hover:bg-green-700!',
+                    day_selected: 'bg-red-600! text-white! hover:bg-red-700! ring-2 ring-red-200!',
                     day_today: 'bg-slate-50 border-slate-200 font-bold text-slate-900',
                     day_outside: 'text-gray-300 opacity-50',
                   }}
@@ -437,7 +515,7 @@ export function HolidayCalendar() {
                         isSameDay(parseISO(e.calendar_date), d)
                       );
                       return (
-                        <div className="flex flex-col items-center justify-start h-full w-full">
+                        <div className="relative flex flex-col items-center justify-start h-full w-full rounded-lg">
                           <span className="text-sm font-semibold mb-1">{d.getDate()}</span>
                           <div className="flex gap-1 flex-wrap justify-center w-full px-1">
                             {dayEvents.map((ev, i) => (

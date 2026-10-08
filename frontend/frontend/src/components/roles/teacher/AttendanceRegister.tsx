@@ -6,21 +6,17 @@ import {
     Users,
     CheckCircle2,
     XCircle,
-    Clock,
-    Save,
     ChevronLeft,
     ChevronRight,
     Filter,
     RefreshCw,
-    Sparkles,
-    Calendar as CalendarIcon,
-    Grid,
-    Check,
-    X,
-    AlertCircle,
     BookOpen,
-    AlertTriangle,
+    AlertCircle,
     MessageSquare,
+    X,
+    Check,
+    AlertTriangle,
+    Grid,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Badge } from '../../ui/badge';
@@ -54,12 +50,57 @@ interface HolidayEntry {
     is_attendance_required: boolean;
 }
 
+// ── Edit Cell Modal State ────────────────────────────────────────────────────
+interface EditModalState {
+    isOpen: boolean;
+    studentId: number | null;
+    studentName: string;
+    dateKey: string;          // YYYY-MM-DD
+    currentStatus: 'present' | 'absent' | undefined;
+    selectedStatus: 'present' | 'absent';
+    note: string;
+    isPast: boolean;
+}
+
+interface BulkAttendanceModalState {
+    isOpen: boolean;
+    dateKey: string;
+    attendanceMap: Record<number, 'present' | 'absent'>;
+    note: string;
+}
+
+const EMPTY_EDIT_MODAL: EditModalState = {
+    isOpen: false,
+    studentId: null,
+    studentName: '',
+    dateKey: '',
+    currentStatus: undefined,
+    selectedStatus: 'present',
+    note: '',
+    isPast: false,
+};
+
+const EMPTY_BULK_MODAL: BulkAttendanceModalState = {
+    isOpen: false,
+    dateKey: '',
+    attendanceMap: {},
+    note: '',
+};
+
+// Day name helper
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function getDayName(dateKey: string) {
+    const d = new Date(dateKey + 'T00:00:00');
+    return DAY_NAMES[d.getDay()];
+}
+function formatDateFull(dateKey: string) {
+    const d = new Date(dateKey + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 export function AttendanceRegister() {
     const token = localStorage.getItem('token');
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-    // View state: 'daily' | 'monthly'
-    const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
 
     // Filters state
     const [classes, setClasses] = useState<ClassDivision[]>([]);
@@ -75,52 +116,33 @@ export function AttendanceRegister() {
     }, []);
 
     // Current Month YYYY-MM
-    const currentMonthStr = useMemo(() => {
-        return todayStr.substring(0, 7);
-    }, [todayStr]);
+    const currentMonthStr = useMemo(() => todayStr.substring(0, 7), [todayStr]);
 
-    // Selected date for Daily View
-    const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-
-    // Selected month for Monthly View
+    // Selected month for the monthly view
     const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
 
-    // Daily Mode Data
-    const [studentsList, setStudentsList] = useState<StudentRecord[]>([]);
-    const [dailyStatusMap, setDailyStatusMap] = useState<Record<number, 'present' | 'absent'>>({});
-    const [isLoadingDaily, setIsLoadingDaily] = useState<boolean>(false);
-    const [isSavingDaily, setIsSavingDaily] = useState<boolean>(false);
-
-    // Monthly Mode Data
+    // Monthly Data
     const [monthlyStudents, setMonthlyStudents] = useState<StudentRecord[]>([]);
     const [monthlyAttendanceMap, setMonthlyAttendanceMap] = useState<Record<string, 'present' | 'absent'>>({});
     const [holidaysMap, setHolidaysMap] = useState<Record<string, HolidayEntry>>({});
     const [daysInMonth, setDaysInMonth] = useState<number>(31);
     const [isLoadingMonthly, setIsLoadingMonthly] = useState<boolean>(false);
 
-    // Pending edit requests map: key = "studentId_YYYY-MM-DD" -> true
+    // Pending and rejected edit requests: key = "studentId_YYYY-MM-DD" -> status
     const [pendingRequestsMap, setPendingRequestsMap] = useState<Record<string, boolean>>({});
+    const [rejectedRequestsMap, setRejectedRequestsMap] = useState<Record<string, boolean>>({});
 
-    // Note dialog for past-date monthly cell clicks
-    const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-    const [noteDialogNote, setNoteDialogNote] = useState('');
-    // Pending monthly cell action (awaiting note confirmation)
-    const [pendingCellAction, setPendingCellAction] = useState<{
-        studentId: number;
-        dateKey: string;
-        currentKey: string;
-        currentStatus: 'present' | 'absent' | undefined;
-        newStatus: 'present' | 'absent';
-    } | null>(null);
-
-    // Note dialog for daily bulk submit for past date
-    const [dailyNoteDialogOpen, setDailyNoteDialogOpen] = useState(false);
-    const [dailyNoteNote, setDailyNoteNote] = useState('');
-
-    // Search filter inside table
+    // Search filter
     const [searchQuery, setSearchQuery] = useState<string>('');
 
-    // 1️⃣ Fetch assigned teacher classes on mount
+    // ── Edit Cell Modal ──────────────────────────────────────────────────────
+    const [editModal, setEditModal] = useState<EditModalState>(EMPTY_EDIT_MODAL);
+    const [bulkAttendanceModal, setBulkAttendanceModal] = useState<BulkAttendanceModalState>(EMPTY_BULK_MODAL);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<Record<number, boolean>>({});
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+    const [isSavingBulkAttendance, setIsSavingBulkAttendance] = useState(false);
+
+    // ── 1. Fetch assigned teacher classes on mount ───────────────────────────
     useEffect(() => {
         const fetchClasses = async () => {
             try {
@@ -130,7 +152,6 @@ export function AttendanceRegister() {
                 if (res.data.success && Array.isArray(res.data.data)) {
                     setClasses(res.data.data);
                     if (res.data.data.length > 0) {
-                        // Select first division by default if available
                         setSelectedDivisionId(res.data.data[0].division_id.toString());
                     }
                 }
@@ -141,46 +162,16 @@ export function AttendanceRegister() {
         fetchClasses();
     }, [BACKEND_URL, token]);
 
-    // 2️⃣ Fetch Daily Attendance Data
-    const fetchDailyData = async () => {
-        if (!selectedDate) return;
-        setIsLoadingDaily(true);
-        try {
-            const divisionParam = selectedDivisionId !== 'all' ? `&division_id=${selectedDivisionId}` : '';
-            const res = await axios.get(`${BACKEND_URL}/api/teacher/attendance/status?date=${selectedDate}${divisionParam}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (res.data.success) {
-                const fetchedStudents: StudentRecord[] = res.data.students || [];
-                setStudentsList(fetchedStudents);
-
-                const initialMap: Record<number, 'present' | 'absent'> = {};
-                fetchedStudents.forEach((s) => {
-                    if (s.attendance_status === 'present' || s.attendance_status === 'absent') {
-                        initialMap[s.student_id] = s.attendance_status;
-                    }
-                });
-                setDailyStatusMap(initialMap);
-            }
-        } catch (err: any) {
-            console.error('Error fetching daily attendance:', err);
-            toast.error(err.response?.data?.message || 'Failed to load attendance');
-        } finally {
-            setIsLoadingDaily(false);
-        }
-    };
-
-    // 3️⃣ Fetch Monthly Register Data
+    // ── 2. Fetch Monthly Register Data ───────────────────────────────────────
     const fetchMonthlyData = async () => {
         if (!selectedMonth) return;
         setIsLoadingMonthly(true);
         try {
             const divisionParam = selectedDivisionId !== 'all' ? `&division_id=${selectedDivisionId}` : '';
-            const res = await axios.get(`${BACKEND_URL}/api/teacher/attendance/register?month=${selectedMonth}${divisionParam}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
+            const res = await axios.get(
+                `${BACKEND_URL}/api/teacher/attendance/register?month=${selectedMonth}${divisionParam}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             if (res.data.success) {
                 setMonthlyStudents(res.data.students || []);
                 setMonthlyAttendanceMap(res.data.attendanceMap || {});
@@ -195,206 +186,48 @@ export function AttendanceRegister() {
         }
     };
 
-    // 4️⃣ Fetch teacher's pending edit requests for the selected month
-    const fetchPendingRequests = async () => {
+    // ── 3. Fetch attendance edit request statuses ──────────────────────────
+    const fetchAttendanceRequestStatuses = async () => {
         try {
             const divisionParam = selectedDivisionId !== 'all' ? `&division_id=${selectedDivisionId}` : '';
             const res = await axios.get(
-                `${BACKEND_URL}/api/teacher/attendance/edit-requests?status=pending&month=${selectedMonth}${divisionParam}`,
+                `${BACKEND_URL}/api/teacher/attendance/edit-requests?month=${selectedMonth}${divisionParam}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (res.data.success) {
-                const map: Record<string, boolean> = {};
+                const pendingMap: Record<string, boolean> = {};
+                const rejectedMap: Record<string, boolean> = {};
+
                 (res.data.data || []).forEach((r: any) => {
-                    map[`${r.student_id}_${r.attendance_date}`] = true;
+                    const key = `${r.student_id}_${r.attendance_date}`;
+                    if (r.status === 'pending') pendingMap[key] = true;
+                    else if (r.status === 'rejected') rejectedMap[key] = true;
                 });
-                setPendingRequestsMap(map);
+
+                setPendingRequestsMap(pendingMap);
+                setRejectedRequestsMap(rejectedMap);
             }
         } catch {
             // silently ignore
         }
     };
 
-    // Trigger data load when filters change
+    // Trigger data load when filters/month change
     useEffect(() => {
-        if (viewMode === 'daily') {
-            fetchDailyData();
-        } else {
-            fetchMonthlyData();
-            fetchPendingRequests();
-        }
-    }, [viewMode, selectedDate, selectedMonth, selectedDivisionId]);
+        fetchMonthlyData();
+        fetchAttendanceRequestStatuses();
+    }, [selectedMonth, selectedDivisionId]);
 
-    // Handlers for Daily Status Toggle
-    const handleToggleStudentStatus = (studentId: number, status: 'present' | 'absent') => {
-        setDailyStatusMap((prev) => ({
-            ...prev,
-            [studentId]: status,
-        }));
-    };
+    useEffect(() => {
+        const handleCalendarRefresh = () => fetchMonthlyData();
+        window.addEventListener('calendarDataChanged', handleCalendarRefresh);
 
-    const handleMarkAll = (status: 'present' | 'absent') => {
-        const newMap: Record<number, 'present' | 'absent'> = {};
-        filteredDailyStudents.forEach((s) => {
-            newMap[s.student_id] = status;
-        });
-        setDailyStatusMap((prev) => ({ ...prev, ...newMap }));
-        toast.info(`Marked all ${filteredDailyStudents.length} students as ${status.toUpperCase()}`);
-    };
+        return () => {
+            window.removeEventListener('calendarDataChanged', handleCalendarRefresh);
+        };
+    }, []);
 
-    const handleResetAll = () => {
-        setDailyStatusMap({});
-        toast.info('Cleared current selections');
-    };
-
-    // Save Daily Attendance
-    const handleSaveDailyAttendance = async (note?: string) => {
-        if (Object.keys(dailyStatusMap).length === 0) {
-            toast.warning('Please mark attendance for at least one student before saving.');
-            return;
-        }
-
-        const isPastDate = selectedDate < todayStr;
-
-        // For past dates: open note dialog first, then submit
-        if (isPastDate && note === undefined) {
-            setDailyNoteNote('');
-            setDailyNoteDialogOpen(true);
-            return;
-        }
-
-        setIsSavingDaily(true);
-        try {
-            const attendanceArray = Object.entries(dailyStatusMap).map(([sId, status]) => ({
-                student_id: parseInt(sId, 10),
-                status,
-            }));
-
-            const res = await axios.post(
-                `${BACKEND_URL}/api/teacher/attendance/mark`,
-                {
-                    date: selectedDate,
-                    attendance: attendanceArray,
-                    note: note || undefined,
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (res.data.success) {
-                if (res.data.pending_approval) {
-                    toast.info('Edit request submitted! Awaiting School Admin approval.', {
-                        duration: 5000,
-                        icon: '⏳',
-                    });
-                } else {
-                    toast.success(res.data.message || 'Attendance saved successfully!');
-                }
-                fetchDailyData();
-            }
-        } catch (err: any) {
-            console.error('Failed to save attendance:', err);
-            toast.error(err.response?.data?.message || 'Failed to save attendance');
-        } finally {
-            setIsSavingDaily(false);
-        }
-    };
-
-    // Actual API call for monthly cell (called after note is provided for past dates)
-    const submitMonthlyCellUpdate = async (
-        studentId: number,
-        dateKey: string,
-        currentKey: string,
-        currentStatus: 'present' | 'absent' | undefined,
-        newStatus: 'present' | 'absent',
-        note?: string
-    ) => {
-        try {
-            const res = await axios.patch(
-                `${BACKEND_URL}/api/teacher/attendance/update`,
-                {
-                    student_id: studentId,
-                    date: dateKey,
-                    status: newStatus,
-                    note: note || undefined,
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            if (res.data.success) {
-                if (res.data.pending_approval) {
-                    // Revert optimistic UI — the real attendance hasn't changed yet
-                    setMonthlyAttendanceMap((prev) => ({
-                        ...prev,
-                        [currentKey]: currentStatus as 'present' | 'absent',
-                    }));
-                    // Mark cell as pending in the pending map
-                    setPendingRequestsMap((prev) => ({ ...prev, [currentKey]: true }));
-                    toast.info('Edit request submitted — awaiting School Admin approval.', {
-                        icon: '⏳',
-                        duration: 4000,
-                    });
-                } else {
-                    toast.success(`Updated status to ${newStatus.toUpperCase()} for ${dateKey}`);
-                }
-            }
-        } catch (err: any) {
-            // Revert on error
-            setMonthlyAttendanceMap((prev) => ({
-                ...prev,
-                [currentKey]: currentStatus || 'present',
-            }));
-            toast.error(err.response?.data?.message || 'Failed to update attendance');
-        }
-    };
-
-    // Cell Click Handler for Monthly Register Grid
-    const handleMonthlyCellClick = async (studentId: number, dayNum: number) => {
-        const dayStr = String(dayNum).padStart(2, '0');
-        const dateKey = `${selectedMonth}-${dayStr}`;
-
-        // Disallow future dates
-        if (dateKey > todayStr) {
-            toast.warning('Cannot mark attendance for future dates.');
-            return;
-        }
-
-        // Check if holiday
-        if (holidaysMap[dateKey] && !holidaysMap[dateKey].is_attendance_required) {
-            toast.error(`Holiday: ${holidaysMap[dateKey].title} (${holidaysMap[dateKey].type})`);
-            return;
-        }
-
-        const currentKey = `${studentId}_${dateKey}`;
-        const currentStatus = monthlyAttendanceMap[currentKey] as 'present' | 'absent' | undefined;
-        const newStatus: 'present' | 'absent' = currentStatus === 'present' ? 'absent' : 'present';
-
-        // For past dates: open note dialog before submitting
-        if (dateKey < todayStr) {
-            // Optimistic update for immediate visual feedback
-            setMonthlyAttendanceMap((prev) => ({ ...prev, [currentKey]: newStatus }));
-            setPendingCellAction({ studentId, dateKey, currentKey, currentStatus, newStatus });
-            setNoteDialogNote('');
-            setNoteDialogOpen(true);
-            return;
-        }
-
-        // Today → submit directly without note
-        setMonthlyAttendanceMap((prev) => ({ ...prev, [currentKey]: newStatus }));
-        await submitMonthlyCellUpdate(studentId, dateKey, currentKey, currentStatus, newStatus);
-    };
-
-    // Filtered Students List by Search
-    const filteredDailyStudents = useMemo(() => {
-        if (!searchQuery.trim()) return studentsList;
-        const q = searchQuery.toLowerCase();
-        return studentsList.filter(
-            (s) =>
-                s.first_name.toLowerCase().includes(q) ||
-                s.last_name.toLowerCase().includes(q) ||
-                (s.roll_number && s.roll_number.toString().toLowerCase().includes(q))
-        );
-    }, [studentsList, searchQuery]);
-
+    // ── Filtered Students ────────────────────────────────────────────────────
     const filteredMonthlyStudents = useMemo(() => {
         if (!searchQuery.trim()) return monthlyStudents;
         const q = searchQuery.toLowerCase();
@@ -406,56 +239,236 @@ export function AttendanceRegister() {
         );
     }, [monthlyStudents, searchQuery]);
 
-    // Statistics Calculation for Daily Mode
-    const dailyStats = useMemo(() => {
-        const total = studentsList.length;
-        let markedPresent = 0;
-        let markedAbsent = 0;
-
-        studentsList.forEach((s) => {
-            const st = dailyStatusMap[s.student_id];
-            if (st === 'present') markedPresent++;
-            else if (st === 'absent') markedAbsent++;
-        });
-
-        const notMarked = total - (markedPresent + markedAbsent);
-        const presentPct = total > 0 ? ((markedPresent / total) * 100).toFixed(0) : '0';
-
-        return { total, present: markedPresent, absent: markedAbsent, notMarked, presentPct };
-    }, [studentsList, dailyStatusMap]);
-
-    // Date Navigator Helpers
-    const shiftDailyDate = (days: number) => {
-        const d = new Date(selectedDate);
-        d.setDate(d.getDate() + days);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const newDateStr = `${y}-${m}-${day}`;
-        if (newDateStr <= todayStr) {
-            setSelectedDate(newDateStr);
-        } else {
-            toast.warning('Cannot navigate into future dates.');
-        }
-    };
-
-    const shiftMonthlyMonth = (months: number) => {
+    // ── Month navigation ─────────────────────────────────────────────────────
+    const shiftMonth = (months: number) => {
         const [yStr, mStr] = selectedMonth.split('-');
         let y = parseInt(yStr, 10);
         let m = parseInt(mStr, 10) + months;
-        if (m > 12) {
-            y += 1;
-            m = 1;
-        } else if (m < 1) {
-            y -= 1;
-            m = 12;
-        }
-        const newMonthStr = `${y}-${String(m).padStart(2, '0')}`;
-        setSelectedMonth(newMonthStr);
+        if (m > 12) { y += 1; m = 1; }
+        else if (m < 1) { y -= 1; m = 12; }
+        setSelectedMonth(`${y}-${String(m).padStart(2, '0')}`);
     };
 
+    // ── Cell click → open modal ──────────────────────────────────────────────
+    const isHolidayClosed = (dateKey: string) => holidaysMap[dateKey]?.is_attendance_required === false;
+
+    const handleCellClick = (student: StudentRecord, dayNum: number) => {
+        const dayStr = String(dayNum).padStart(2, '0');
+        const dateKey = `${selectedMonth}-${dayStr}`;
+
+        if (dateKey > todayStr) {
+            toast.warning('Cannot mark attendance for future dates.');
+            return;
+        }
+        if (isHolidayClosed(dateKey)) {
+            toast.error(`Holiday: ${holidaysMap[dateKey].title} (${holidaysMap[dateKey].type})`);
+            return;
+        }
+
+        const recordKey = `${student.student_id}_${dateKey}`;
+        const currentStatus = monthlyAttendanceMap[recordKey] as 'present' | 'absent' | undefined;
+        const isPast = dateKey < todayStr;
+
+        setEditModal({
+            isOpen: true,
+            studentId: student.student_id,
+            studentName: `${student.first_name} ${student.last_name}`,
+            dateKey,
+            currentStatus,
+            selectedStatus: currentStatus === 'absent' ? 'absent' : 'present',
+            note: '',
+            isPast,
+        });
+    };
+
+    const openBulkAttendanceModal = (dateKey: string) => {
+        if (isHolidayClosed(dateKey)) {
+            toast.error(`Holiday: ${holidaysMap[dateKey].title} (${holidaysMap[dateKey].type})`);
+            return;
+        }
+
+        const attendanceMap: Record<number, 'present' | 'absent'> = {};
+
+        filteredMonthlyStudents.forEach((student) => {
+            const status = monthlyAttendanceMap[`${student.student_id}_${dateKey}`];
+            if (status === 'present' || status === 'absent') {
+                attendanceMap[student.student_id] = status;
+            }
+        });
+
+        setBulkAttendanceModal({ isOpen: true, dateKey, attendanceMap, note: '' });
+    };
+
+    const updateBulkAttendanceStatus = (studentId: number, status: 'present' | 'absent') => {
+        setBulkAttendanceModal((prev) => ({
+            ...prev,
+            attendanceMap: { ...prev.attendanceMap, [studentId]: status },
+        }));
+    };
+
+    const toggleStudentSelection = (studentId: number) => {
+        setSelectedStudentIds((prev) => ({ ...prev, [studentId]: !prev[studentId] }));
+    };
+
+    const toggleAllStudents = () => {
+        const allSelected = filteredMonthlyStudents.length > 0 && filteredMonthlyStudents.every((student) => selectedStudentIds[student.student_id]);
+        if (allSelected) {
+            const nextSelection = { ...selectedStudentIds };
+            filteredMonthlyStudents.forEach((student) => { delete nextSelection[student.student_id]; });
+            setSelectedStudentIds(nextSelection);
+            return;
+        }
+
+        setSelectedStudentIds((prev) => ({
+            ...prev,
+            ...Object.fromEntries(filteredMonthlyStudents.map((student) => [student.student_id, true])),
+        }));
+    };
+
+    // ── Submit edit ──────────────────────────────────────────────────────────
+    const handleSubmitEdit = async () => {
+        if (!editModal.studentId) return;
+        setIsSavingEdit(true);
+
+        const { dateKey, selectedStatus, note, isPast } = editModal;
+        const noteVal = note.trim() || undefined;
+
+        // Build list of students to update
+        const studentsToUpdate = monthlyStudents.filter((s) => s.student_id === editModal.studentId);
+
+        let anyPendingApproval = false;
+        let anyError = false;
+
+        for (const student of studentsToUpdate) {
+            const recordKey = `${student.student_id}_${dateKey}`;
+            const prevStatus = monthlyAttendanceMap[recordKey];
+            if (prevStatus === selectedStatus) continue;   // no change needed
+
+            // Optimistic update
+            setMonthlyAttendanceMap((prev) => ({ ...prev, [recordKey]: selectedStatus }));
+
+            try {
+                const res = await axios.patch(
+                    `${BACKEND_URL}/api/teacher/attendance/update`,
+                    { student_id: student.student_id, date: dateKey, status: selectedStatus, note: noteVal },
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                if (res.data.success) {
+                    if (res.data.pending_approval) {
+                        // Revert to original — it's now pending
+                        setMonthlyAttendanceMap((prev) => ({
+                            ...prev,
+                            [recordKey]: prevStatus as 'present' | 'absent',
+                        }));
+                        setPendingRequestsMap((prev) => ({ ...prev, [recordKey]: true }));
+                        anyPendingApproval = true;
+                    }
+                }
+            } catch (err: any) {
+                // Revert on error
+                setMonthlyAttendanceMap((prev) => ({
+                    ...prev,
+                    [recordKey]: prevStatus || 'present',
+                }));
+                anyError = true;
+            }
+        }
+
+        setIsSavingEdit(false);
+        setEditModal(EMPTY_EDIT_MODAL);
+
+        if (anyError) {
+            toast.error('Some updates failed. Please retry.');
+        } else if (anyPendingApproval) {
+            toast.info('Edit request submitted — awaiting School Admin approval.', { icon: '⏳', duration: 4000 });
+        } else {
+            toast.success(`Updated ${editModal.studentName} to ${selectedStatus.toUpperCase()}`);
+        }
+    };
+
+    const handleSubmitBulkAttendance = async () => {
+        if (!bulkAttendanceModal.dateKey) return;
+        if (bulkAttendanceModal.dateKey > todayStr) {
+            toast.warning('Cannot mark attendance for a future date.');
+            return;
+        }
+        if (isHolidayClosed(bulkAttendanceModal.dateKey)) {
+            toast.error(`Holiday: ${holidaysMap[bulkAttendanceModal.dateKey].title} (${holidaysMap[bulkAttendanceModal.dateKey].type})`);
+            return;
+        }
+
+        const isPastDate = bulkAttendanceModal.dateKey < todayStr;
+        const selectedStudents = filteredMonthlyStudents.filter((student) => selectedStudentIds[student.student_id]);
+        const attendance = selectedStudents
+            .map((student) => {
+                const status = bulkAttendanceModal.attendanceMap[student.student_id];
+                return status ? { student_id: student.student_id, status } : null;
+            })
+            .filter((item): item is { student_id: number; status: 'present' | 'absent' } => item !== null);
+
+        if (attendance.length === 0) {
+            toast.warning('Select present or absent for at least one selected student.');
+            return;
+        }
+
+        setIsSavingBulkAttendance(true);
+        try {
+            const response = await axios.post(
+                `${BACKEND_URL}/api/teacher/attendance/mark`,
+                { date: bulkAttendanceModal.dateKey, attendance, note: bulkAttendanceModal.note.trim() || undefined },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (response.data.success) {
+                if (response.data.pending_approval) {
+                    const nextPendingRequests = { ...pendingRequestsMap };
+                    attendance.forEach(({ student_id }) => {
+                        nextPendingRequests[`${student_id}_${bulkAttendanceModal.dateKey}`] = true;
+                    });
+                    setPendingRequestsMap(nextPendingRequests);
+                    toast.info(`Bulk attendance submitted for School Admin approval for ${formatDateFull(bulkAttendanceModal.dateKey)}.`, { icon: '⏳', duration: 4000 });
+                } else {
+                    setMonthlyAttendanceMap((prev) => ({
+                        ...prev,
+                        ...Object.fromEntries(attendance.map(({ student_id, status }) => [`${student_id}_${bulkAttendanceModal.dateKey}`, status])),
+                    }));
+                    toast.success(`Updated ${attendance.length} students for ${formatDateFull(bulkAttendanceModal.dateKey)}`);
+                }
+                setBulkAttendanceModal(EMPTY_BULK_MODAL);
+            } else {
+                toast.error(response.data.message || 'Bulk attendance update failed.');
+            }
+        } catch (error: any) {
+            console.error('Failed to save bulk attendance:', error);
+            toast.error(error.response?.data?.message || 'Bulk attendance update failed.');
+        } finally {
+            setIsSavingBulkAttendance(false);
+        }
+    };
+
+    // ── Monthly Statistics ───────────────────────────────────────────────────
+    const monthlyStats = useMemo(() => {
+        let totalMarked = 0;
+        let totalPresent = 0;
+        monthlyStudents.forEach((s) => {
+            Array.from({ length: daysInMonth }, (_, i) => {
+                const dayStr = String(i + 1).padStart(2, '0');
+                const dateKey = `${selectedMonth}-${dayStr}`;
+                if (dateKey > todayStr) return;
+                const key = `${s.student_id}_${dateKey}`;
+                const st = monthlyAttendanceMap[key];
+                if (st === 'present') { totalMarked++; totalPresent++; }
+                else if (st === 'absent') { totalMarked++; }
+            });
+        });
+        const pct = totalMarked > 0 ? Math.round((totalPresent / totalMarked) * 100) : 0;
+        return { totalStudents: monthlyStudents.length, totalMarked, totalPresent, pct };
+    }, [monthlyStudents, monthlyAttendanceMap, daysInMonth, selectedMonth, todayStr]);
+
+    // ────────────────────────────────────────────────────────────────────────
     return (
         <div className="p-4 md:p-8 min-h-screen bg-slate-50/50 space-y-6">
+
             {/* ── Top Header Section ── */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border shadow-sm">
                 <div>
@@ -468,43 +481,49 @@ export function AttendanceRegister() {
                                 Attendance Register
                             </h1>
                             <p className="text-sm text-slate-500 font-medium">
-                                View & mark student attendance for past days and the current day
+                                Monthly grid view — click any cell to edit past attendance
                             </p>
                         </div>
                     </div>
                 </div>
 
-                {/* View Mode Switcher */}
-                <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 self-start md:self-auto">
+                {/* Month Navigator */}
+                <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setViewMode('daily')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'daily'
-                            ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
-                            : 'text-slate-600 hover:text-slate-900'
-                            }`}
+                        onClick={() => shiftMonth(-1)}
+                        className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                        title="Previous Month"
                     >
-                        <CalendarIcon className="w-4 h-4" />
-                        Daily Marking
+                        <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <input
+                        type="month"
+                        value={selectedMonth}
+                        onChange={(e) => setSelectedMonth(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                    <button
+                        onClick={() => shiftMonth(1)}
+                        className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+                        title="Next Month"
+                    >
+                        <ChevronRight className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => setViewMode('monthly')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'monthly'
-                            ? 'bg-white text-emerald-700 shadow-sm border border-slate-200'
-                            : 'text-slate-600 hover:text-slate-900'
-                            }`}
+                        onClick={() => setSelectedMonth(currentMonthStr)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 border border-emerald-200 transition-colors whitespace-nowrap"
                     >
-                        <Grid className="w-4 h-4" />
-                        Monthly Register Grid
+                        Current Month
                     </button>
                 </div>
             </div>
 
-            {/* ── Filters & Controls Bar ── */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-white p-5 rounded-2xl border shadow-sm items-center">
+            {/* ── Filters Bar ── */}
+            <div className="flex flex-col gap-4 bg-white p-5 rounded-2xl border shadow-sm md:flex-row md:items-end">
                 {/* Division Selector */}
-                <div className="md:col-span-4 flex items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                     <Filter className="w-5 h-5 text-slate-400 shrink-0" />
-                    <div className="w-full">
+                    <div className="w-full min-w-0">
                         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                             Class / Division
                         </label>
@@ -523,90 +542,8 @@ export function AttendanceRegister() {
                     </div>
                 </div>
 
-                {/* Date / Month Picker Controls */}
-                <div className="md:col-span-5 flex items-center gap-3">
-                    <CalendarDays className="w-5 h-5 text-slate-400 shrink-0" />
-                    {viewMode === 'daily' ? (
-                        <div className="w-full">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                                Select Attendance Date
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => shiftDailyDate(-1)}
-                                    className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-                                    title="Previous Day"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <input
-                                    type="date"
-                                    max={todayStr}
-                                    value={selectedDate}
-                                    onChange={(e) => {
-                                        if (e.target.value <= todayStr) {
-                                            setSelectedDate(e.target.value);
-                                        } else {
-                                            toast.warning('Future dates are not allowed.');
-                                        }
-                                    }}
-                                    className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-sm font-bold flex-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                />
-                                <button
-                                    onClick={() => shiftDailyDate(1)}
-                                    disabled={selectedDate >= todayStr}
-                                    className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-slate-100 transition-colors"
-                                    title="Next Day"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={() => setSelectedDate(todayStr)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                                >
-                                    Today
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="w-full">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                                Select Month
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => shiftMonthlyMonth(-1)}
-                                    className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-                                    title="Previous Month"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <input
-                                    type="month"
-                                    value={selectedMonth}
-                                    onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-1.5 text-sm font-bold flex-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                                />
-                                <button
-                                    onClick={() => shiftMonthlyMonth(1)}
-                                    className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-                                    title="Next Month"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                                <button
-                                    onClick={() => setSelectedMonth(currentMonthStr)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 border border-emerald-200 transition-colors"
-                                >
-                                    Current Month
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Search Input */}
-                <div className="md:col-span-3">
+                {/* Search */}
+                <div className="min-w-0 flex-1">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                         Search Student
                     </label>
@@ -618,504 +555,583 @@ export function AttendanceRegister() {
                         className="w-full bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                     />
                 </div>
+
+                {/* Refresh */}
+                <div className="flex md:justify-end">
+                    <button
+                        onClick={() => { fetchMonthlyData(); fetchAttendanceRequestStatuses(); }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-sm font-semibold transition-colors"
+                    >
+                        <RefreshCw className="w-4 h-4" /> Refresh
+                    </button>
+                </div>
             </div>
 
-            {/* ── DAILY MARKING VIEW ── */}
-            {viewMode === 'daily' && (
-                <div className="space-y-6">
-                    {/* Summary Stat Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <Card className="border shadow-sm bg-white rounded-2xl">
-                            <CardContent className="p-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Students</p>
-                                    <p className="text-2xl font-bold text-slate-800">{dailyStats.total}</p>
-                                </div>
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                                    <Users className="w-6 h-6" />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border shadow-sm bg-white rounded-2xl">
-                            <CardContent className="p-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Present</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <p className="text-2xl font-bold text-emerald-600">{dailyStats.present}</p>
-                                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                                            {dailyStats.presentPct}%
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                                    <CheckCircle2 className="w-6 h-6" />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border shadow-sm bg-white rounded-2xl">
-                            <CardContent className="p-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Absent</p>
-                                    <p className="text-2xl font-bold text-rose-600">{dailyStats.absent}</p>
-                                </div>
-                                <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-                                    <XCircle className="w-6 h-6" />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border shadow-sm bg-white rounded-2xl">
-                            <CardContent className="p-5 flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Unmarked</p>
-                                    <p className="text-2xl font-bold text-amber-600">{dailyStats.notMarked}</p>
-                                </div>
-                                <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                                    <Clock className="w-6 h-6" />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Quick Actions & Action Bar */}
-                    <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-2">Quick Actions:</span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleMarkAll('present')}
-                                className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-semibold text-xs rounded-xl"
-                            >
-                                <Check className="w-3.5 h-3.5 mr-1" /> Mark All Present
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleMarkAll('absent')}
-                                className="bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 font-semibold text-xs rounded-xl"
-                            >
-                                <X className="w-3.5 h-3.5 mr-1" /> Mark All Absent
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleResetAll}
-                                className="text-slate-600 hover:bg-slate-100 font-medium text-xs rounded-xl"
-                            >
-                                <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reset
-                            </Button>
-                        </div>
-
-                        <Button
-                            onClick={() => handleSaveDailyAttendance()}
-                            disabled={isSavingDaily || isLoadingDaily}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 rounded-xl shadow-md transition-all flex items-center gap-2"
-                        >
-                            {isSavingDaily ? (
-                                <>
-                                    <RefreshCw className="w-4 h-4 animate-spin" /> Saving...
-                                </>
-                            ) : selectedDate < todayStr ? (
-                                <>
-                                    <AlertTriangle className="w-4 h-4" />
-                                    Submit for Approval ({Object.keys(dailyStatusMap).length})
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4" /> Save Attendance ({Object.keys(dailyStatusMap).length})
-                                </>
-                            )}
-                        </Button>
-                    </div>
-
-                    {/* Students Attendance Table */}
-                    <Card className="border shadow-sm bg-white rounded-2xl overflow-hidden">
-                        <CardHeader className="bg-slate-50/70 border-b py-4 px-6 flex flex-row items-center justify-between">
-                            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                <span>Student Roster for {selectedDate}</span>
-                                <Badge variant="outline" className="bg-slate-100 text-slate-700 font-semibold">
-                                    {filteredDailyStudents.length} Students
-                                </Badge>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            {isLoadingDaily ? (
-                                <div className="py-20 text-center">
-                                    <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
-                                    <p className="text-slate-500 font-semibold text-sm">Loading student attendance roster...</p>
-                                </div>
-                            ) : filteredDailyStudents.length === 0 ? (
-                                <div className="py-16 text-center text-slate-500 space-y-2">
-                                    <AlertCircle className="w-10 h-10 text-slate-300 mx-auto" />
-                                    <p className="font-semibold text-base">No students found</p>
-                                    <p className="text-xs text-slate-400">Try changing the division filter or search query</p>
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="border-b bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                                <th className="py-3.5 px-6">Roll No</th>
-                                                <th className="py-3.5 px-6">Student Name</th>
-                                                <th className="py-3.5 px-6">Class & Division</th>
-                                                <th className="py-3.5 px-6 text-center">Attendance Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y text-sm">
-                                            {filteredDailyStudents.map((s) => {
-                                                const status = dailyStatusMap[s.student_id];
-                                                return (
-                                                    <tr key={s.student_id} className="hover:bg-slate-50/80 transition-colors">
-                                                        <td className="py-4 px-6 font-bold text-slate-700">
-                                                            {s.roll_number || '-'}
-                                                        </td>
-                                                        <td className="py-4 px-6">
-                                                            <div className="font-bold text-slate-800">
-                                                                {s.first_name} {s.last_name}
-                                                            </div>
-                                                            {s.father_name && (
-                                                                <div className="text-xs text-slate-400">
-                                                                    Parent: {s.father_name}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="py-4 px-6">
-                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700">
-                                                                {s.class_name || 'Class'} - Div {s.division_name || ''}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-4 px-6 text-center">
-                                                            <div className="inline-flex items-center p-1 bg-slate-100 rounded-xl gap-1 border border-slate-200">
-                                                                <button
-                                                                    onClick={() => handleToggleStudentStatus(s.student_id, 'present')}
-                                                                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${status === 'present'
-                                                                        ? 'bg-emerald-600 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:bg-slate-200/60'
-                                                                        }`}
-                                                                >
-                                                                    <Check className="w-3.5 h-3.5" /> Present
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleToggleStudentStatus(s.student_id, 'absent')}
-                                                                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${status === 'absent'
-                                                                        ? 'bg-rose-600 text-white shadow-sm'
-                                                                        : 'text-slate-600 hover:bg-slate-200/60'
-                                                                        }`}
-                                                                >
-                                                                    <X className="w-3.5 h-3.5" /> Absent
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
-
-            {/* ── MONTHLY REGISTER GRID VIEW ── */}
-            {viewMode === 'monthly' && (
-                <Card className="border shadow-sm bg-white rounded-2xl overflow-hidden">
-                    <CardHeader className="bg-slate-50/70 border-b py-4 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* ── Summary Stats ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="border shadow-sm bg-white rounded-2xl">
+                    <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
-                                <span>Monthly Attendance Sheet ({selectedMonth})</span>
-                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                                    {daysInMonth} Days
-                                </Badge>
-                            </CardTitle>
-                            <p className="text-xs text-slate-500 mt-1">
-                                Click any cell to toggle <span className="font-bold text-emerald-600">P</span> (Present) or <span className="font-bold text-rose-600">A</span> (Absent) for past days or today.
-                            </p>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Students</p>
+                            <p className="text-2xl font-bold text-slate-800">{monthlyStats.totalStudents}</p>
                         </div>
-
-                        {/* Legend */}
-                        <div className="flex items-center gap-4 text-xs font-semibold">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-5 h-5 bg-emerald-600 text-white rounded flex items-center justify-center font-bold text-[10px]">P</span>
-                                <span className="text-slate-600">Present</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-5 h-5 bg-rose-600 text-white rounded flex items-center justify-center font-bold text-[10px]">A</span>
-                                <span className="text-slate-600">Absent</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-5 h-5 bg-slate-200 text-slate-400 rounded flex items-center justify-center font-bold text-[10px]">-</span>
-                                <span className="text-slate-600">Not Marked</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-5 h-5 bg-amber-100 text-amber-800 rounded flex items-center justify-center font-bold text-[10px]">H</span>
-                                <span className="text-slate-600">Holiday</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-5 h-5 bg-yellow-200 text-yellow-800 rounded flex items-center justify-center font-bold text-[10px]">⏳</span>
-                                <span className="text-slate-600">Pending Approval</span>
-                            </div>
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <Users className="w-6 h-6" />
                         </div>
-                    </CardHeader>
-
-                    <CardContent className="p-0">
-                        {isLoadingMonthly ? (
-                            <div className="py-24 text-center">
-                                <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
-                                <p className="text-slate-500 font-semibold text-sm">Loading monthly register grid...</p>
-                            </div>
-                        ) : filteredMonthlyStudents.length === 0 ? (
-                            <div className="py-16 text-center text-slate-500 space-y-2">
-                                <AlertCircle className="w-10 h-10 text-slate-300 mx-auto" />
-                                <p className="font-semibold text-base">No students found</p>
-                                <p className="text-xs text-slate-400">Try adjusting division filters or search input</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto max-w-full">
-                                <table className="w-full text-left border-collapse text-xs min-w-[1000px]">
-                                    <thead>
-                                        <tr className="bg-slate-100 border-b font-bold text-slate-700">
-                                            <th className="py-3 px-3 sticky left-0 bg-slate-100 z-10 w-12 text-center border-r">
-                                                Roll
-                                            </th>
-                                            <th className="py-3 px-4 sticky left-12 bg-slate-100 z-10 min-w-[160px] border-r">
-                                                Student Name
-                                            </th>
-                                            {Array.from({ length: daysInMonth }, (_, i) => {
-                                                const dayNum = i + 1;
-                                                const dayStr = String(dayNum).padStart(2, '0');
-                                                const dateKey = `${selectedMonth}-${dayStr}`;
-                                                const isToday = dateKey === todayStr;
-                                                const isFuture = dateKey > todayStr;
-                                                const holiday = holidaysMap[dateKey];
-
-                                                return (
-                                                    <th
-                                                        key={dayNum}
-                                                        className={`py-2 px-1 text-center min-w-[34px] border-r ${isToday
-                                                            ? 'bg-emerald-100 text-emerald-800 border-b-2 border-b-emerald-600'
-                                                            : isFuture
-                                                                ? 'bg-slate-50 text-slate-400'
-                                                                : holiday
-                                                                    ? 'bg-amber-50 text-amber-800'
-                                                                    : ''
-                                                            }`}
-                                                        title={holiday ? `${holiday.title} (${holiday.type})` : dateKey}
-                                                    >
-                                                        <div>{dayNum}</div>
-                                                    </th>
-                                                );
-                                            })}
-                                            <th className="py-3 px-3 text-center bg-slate-100 font-bold min-w-[60px]">
-                                                P / Total
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y font-medium text-slate-800">
-                                        {filteredMonthlyStudents.map((s) => {
-                                            let presentCount = 0;
-                                            let totalMarkedDays = 0;
-
-                                            return (
-                                                <tr key={s.student_id} className="hover:bg-slate-50/80 transition-colors">
-                                                    <td className="py-2.5 px-3 sticky left-0 bg-white hover:bg-slate-50 z-10 font-bold text-center border-r text-slate-700">
-                                                        {s.roll_number || '-'}
-                                                    </td>
-                                                    <td className="py-2.5 px-4 sticky left-12 bg-white hover:bg-slate-50 z-10 font-bold border-r truncate max-w-[180px]">
-                                                        {s.first_name} {s.last_name}
-                                                    </td>
-                                                    {Array.from({ length: daysInMonth }, (_, i) => {
-                                                        const dayNum = i + 1;
-                                                        const dayStr = String(dayNum).padStart(2, '0');
-                                                        const dateKey = `${selectedMonth}-${dayStr}`;
-                                                        const isToday = dateKey === todayStr;
-                                                        const isFuture = dateKey > todayStr;
-                                                        const holiday = holidaysMap[dateKey];
-                                                        const recordKey = `${s.student_id}_${dateKey}`;
-                                                        const status = monthlyAttendanceMap[recordKey];
-
-                                                        if (status === 'present') {
-                                                            presentCount++;
-                                                            totalMarkedDays++;
-                                                        } else if (status === 'absent') {
-                                                            totalMarkedDays++;
-                                                        }
-
-                                                        return (
-                                                            <td
-                                                                key={dayNum}
-                                                                onClick={() => handleMonthlyCellClick(s.student_id, dayNum)}
-                                                                className={`py-2 px-1 text-center border-r select-none cursor-pointer transition-colors ${isToday ? 'bg-emerald-50/50' : ''
-                                                                    } ${isFuture ? 'bg-slate-50/60 cursor-not-allowed' : 'hover:bg-slate-100'}`}
-                                                            >
-                                                                {holiday && !holiday.is_attendance_required ? (
-                                                                    <span
-                                                                        className="inline-block w-6 h-6 leading-6 rounded bg-amber-100 text-amber-800 font-bold text-[10px]"
-                                                                        title={holiday.title}
-                                                                    >
-                                                                        H
-                                                                    </span>
-                                                                ) : pendingRequestsMap[recordKey] ? (
-                                                                    <span
-                                                                        className="inline-block w-6 h-6 leading-6 rounded bg-yellow-200 text-yellow-800 font-bold text-[10px]"
-                                                                        title="Pending approval by School Admin"
-                                                                    >
-                                                                        ⏳
-                                                                    </span>
-                                                                ) : status === 'present' ? (
-                                                                    <span className="inline-block w-6 h-6 leading-6 rounded bg-emerald-600 text-white font-bold text-[11px] shadow-xs">
-                                                                        P
-                                                                    </span>
-                                                                ) : status === 'absent' ? (
-                                                                    <span className="inline-block w-6 h-6 leading-6 rounded bg-rose-600 text-white font-bold text-[11px] shadow-xs">
-                                                                        A
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-block w-6 h-6 leading-6 rounded text-slate-300 font-bold text-[11px]">
-                                                                        -
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                        );
-                                                    })}
-                                                    <td className="py-2.5 px-3 text-center bg-slate-50/80 font-bold text-slate-700">
-                                                        {presentCount} / {totalMarkedDays}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
                     </CardContent>
                 </Card>
-            )}
-
-            {/* ── Monthly Cell Note Dialog (past-date edit) ── */}
-            {noteDialogOpen && pendingCellAction && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md mx-4 p-6 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
-                                <MessageSquare className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-base font-bold text-slate-800">Reason for Edit</h3>
-                                <p className="text-xs text-slate-500">
-                                    Editing past attendance for{' '}
-                                    <span className="font-semibold text-slate-700">{pendingCellAction.dateKey}</span>{' '}
-                                    requires admin approval.
-                                </p>
-                            </div>
+                <Card className="border shadow-sm bg-white rounded-2xl">
+                    <CardContent className="p-5 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Present (Total)</p>
+                            <p className="text-2xl font-bold text-emerald-600">{monthlyStats.totalPresent}</p>
                         </div>
-                        <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs text-slate-600 space-y-1">
-                            <p>
-                                <span className="font-semibold">Change:</span>{' '}
-                                <span className={`font-bold ${pendingCellAction.currentStatus === 'present' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                    {pendingCellAction.currentStatus ? pendingCellAction.currentStatus.toUpperCase() : 'NOT MARKED'}
-                                </span>
-                                {' → '}
-                                <span className={`font-bold ${pendingCellAction.newStatus === 'present' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                    {pendingCellAction.newStatus.toUpperCase()}
-                                </span>
+                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <CheckCircle2 className="w-6 h-6" />
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className="border shadow-sm bg-white rounded-2xl">
+                    <CardContent className="p-5 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Absent (Total)</p>
+                            <p className="text-2xl font-bold text-rose-600">
+                                {monthlyStats.totalMarked - monthlyStats.totalPresent}
                             </p>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-                                Note / Reason <span className="text-slate-400 font-normal normal-case">(optional)</span>
-                            </label>
-                            <textarea
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
-                                rows={3}
-                                placeholder="e.g. Student was confirmed absent by parent call..."
-                                value={noteDialogNote}
-                                onChange={(e) => setNoteDialogNote(e.target.value)}
-                                autoFocus
-                            />
+                        <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                            <XCircle className="w-6 h-6" />
                         </div>
-                        <div className="flex items-center gap-3 pt-1">
-                            <Button
-                                variant="outline"
-                                className="flex-1 rounded-xl"
-                                onClick={() => {
-                                    const { currentKey, currentStatus } = pendingCellAction;
-                                    setMonthlyAttendanceMap((prev) => ({
-                                        ...prev,
-                                        [currentKey]: currentStatus as 'present' | 'absent',
-                                    }));
-                                    setNoteDialogOpen(false);
-                                    setPendingCellAction(null);
-                                }}
+                    </CardContent>
+                </Card>
+                <Card className="border shadow-sm bg-white rounded-2xl">
+                    <CardContent className="p-5 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Attendance %</p>
+                            <p className="text-2xl font-bold text-violet-600">{monthlyStats.pct}%</p>
+                        </div>
+                        <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
+                            <Grid className="w-6 h-6" />
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* ── Monthly Register Grid ── */}
+            <Card className="border shadow-sm bg-white rounded-2xl overflow-hidden">
+                <CardHeader className="bg-slate-50/70 border-b py-4 px-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <span>Monthly Attendance Sheet ({selectedMonth})</span>
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                                {daysInMonth} Days
+                            </Badge>
+                        </CardTitle>
+                        <p className="text-xs text-slate-500 mt-1">
+                            Click any past/today cell to edit attendance, or use bulk attendance to update the full register.
+                        </p>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex items-center flex-wrap gap-3 text-xs font-semibold">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-xl border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => openBulkAttendanceModal(todayStr)}
+                            disabled={Object.keys(selectedStudentIds).filter((id) => selectedStudentIds[Number(id)]).length === 0}
+                        >
+                            <Grid className="w-4 h-4 mr-2" />
+                            Bulk Attendance
+                        </Button>
+                        {[
+                            { label: 'Present', abbr: 'P', cls: 'bg-emerald-600 text-white' },
+                            { label: 'Absent', abbr: 'A', cls: 'bg-rose-600 text-white' },
+                            { label: 'Not Marked', abbr: '-', cls: 'bg-slate-200 text-slate-400' },
+                            { label: 'Holiday', abbr: 'H', cls: 'bg-amber-100 text-amber-800' },
+                            { label: 'Pending', abbr: '⏳', cls: 'bg-yellow-200 text-yellow-800' },
+                            { label: 'Rejected', abbr: 'R', cls: 'bg-rose-200 text-rose-800' },
+                        ].map(({ label, abbr, cls }) => (
+                            <div key={label} className="flex items-center gap-1.5">
+                                <span className={`w-5 h-5 ${cls} rounded flex items-center justify-center font-bold text-[10px]`}>{abbr}</span>
+                                <span className="text-slate-600">{label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                    {isLoadingMonthly ? (
+                        <div className="py-24 text-center">
+                            <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
+                            <p className="text-slate-500 font-semibold text-sm">Loading monthly register grid...</p>
+                        </div>
+                    ) : filteredMonthlyStudents.length === 0 ? (
+                        <div className="py-16 text-center text-slate-500 space-y-2">
+                            <AlertCircle className="w-10 h-10 text-slate-300 mx-auto" />
+                            <p className="font-semibold text-base">No students found</p>
+                            <p className="text-xs text-slate-400">Try adjusting division filters or search input</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto max-w-full">
+                            <table className="w-full text-left border-collapse text-xs min-w-[1000px]">
+                                <thead>
+                                    <tr className="bg-slate-100 border-b font-bold text-slate-700">
+                                        <th className="py-3 px-3 sticky left-0 bg-slate-100 z-10 w-12 text-center border-r">
+                                            <input
+                                                type="checkbox"
+                                                aria-label="Select all students"
+                                                checked={filteredMonthlyStudents.length > 0 && filteredMonthlyStudents.every((student) => selectedStudentIds[student.student_id])}
+                                                onChange={toggleAllStudents}
+                                                className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                                            />
+                                        </th>
+                                        <th className="py-3 px-3 sticky left-0 bg-slate-100 z-10 w-12 text-center border-r">
+                                            Roll
+                                        </th>
+                                        <th className="py-3 px-4 sticky left-12 bg-slate-100 z-10 min-w-[160px] border-r">
+                                            Student Name
+                                        </th>
+                                        {Array.from({ length: daysInMonth }, (_, i) => {
+                                            const dayNum = i + 1;
+                                            const dayStr = String(dayNum).padStart(2, '0');
+                                            const dateKey = `${selectedMonth}-${dayStr}`;
+                                            const isToday = dateKey === todayStr;
+                                            const isFuture = dateKey > todayStr;
+                                            const holiday = holidaysMap[dateKey];
+                                            const dayName = getDayName(dateKey);
+
+                                            return (
+                                                <th
+                                                    key={dayNum}
+                                                    className={`relative py-2 px-1 text-center min-w-[36px] border-r ${isToday
+                                                        ? 'bg-emerald-100 text-emerald-800 border-b-2 border-b-emerald-600'
+                                                        : isFuture
+                                                            ? 'bg-slate-50 text-slate-400'
+                                                            : holiday && !holiday.is_attendance_required
+                                                                ? 'bg-amber-50 text-amber-800'
+                                                                : ''
+                                                        }`}
+                                                    title={holiday ? `${holiday.title} (${holiday.type})` : dateKey}
+                                                >
+                                                    <div className="relative inline-flex items-center justify-center font-bold">
+                                                        {dayNum}
+                                                        {holiday && !holiday.is_attendance_required && (
+                                                            <span
+                                                                className="absolute -top-0.5 -right-1 h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-white shadow-sm"
+                                                                aria-label={`${holiday.title} holiday`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <div className={`text-[9px] font-medium ${dayName === 'Sun' || dayName === 'Sat' ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                        {dayName}
+                                                    </div>
+                                                </th>
+                                            );
+                                        })}
+                                        <th className="py-3 px-3 text-center bg-slate-100 font-bold min-w-[60px]">
+                                            P / Total
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y font-medium text-slate-800">
+                                    {filteredMonthlyStudents.map((s) => {
+                                        let presentCount = 0;
+                                        let totalMarkedDays = 0;
+
+                                        return (
+                                            <tr key={s.student_id} className="hover:bg-slate-50/80 transition-colors">
+                                                <td className="py-2.5 px-3 sticky left-0 bg-white hover:bg-slate-50 z-10 font-bold text-center border-r text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        aria-label={`Select ${s.first_name} ${s.last_name}`}
+                                                        checked={Boolean(selectedStudentIds[s.student_id])}
+                                                        onChange={() => toggleStudentSelection(s.student_id)}
+                                                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                                                    />
+                                                </td>
+                                                <td className="py-2.5 px-3 sticky left-12 bg-white hover:bg-slate-50 z-10 font-bold text-center border-r text-slate-700">
+                                                    {s.roll_number || '-'}
+                                                </td>
+                                                <td className="py-2.5 px-4 sticky left-24 bg-white hover:bg-slate-50 z-10 font-bold border-r truncate max-w-[180px]">
+                                                    {s.first_name} {s.last_name}
+                                                </td>
+                                                {Array.from({ length: daysInMonth }, (_, i) => {
+                                                    const dayNum = i + 1;
+                                                    const dayStr = String(dayNum).padStart(2, '0');
+                                                    const dateKey = `${selectedMonth}-${dayStr}`;
+                                                    const isToday = dateKey === todayStr;
+                                                    const isFuture = dateKey > todayStr;
+                                                    const holiday = holidaysMap[dateKey];
+                                                    const isClosedHoliday = isHolidayClosed(dateKey);
+                                                    const recordKey = `${s.student_id}_${dateKey}`;
+                                                    const status = monthlyAttendanceMap[recordKey];
+
+                                                    if (status === 'present') { presentCount++; totalMarkedDays++; }
+                                                    else if (status === 'absent') { totalMarkedDays++; }
+
+                                                    return (
+                                                        <td
+                                                            key={dayNum}
+                                                            onClick={() => !isFuture && !isClosedHoliday && handleCellClick(s, dayNum)}
+                                                            className={`relative py-2 px-1 text-center border-r select-none transition-colors ${isToday ? 'bg-emerald-50/50' : ''
+                                                                } ${isFuture
+                                                                    ? 'bg-slate-50/60 cursor-not-allowed opacity-50'
+                                                                    : isClosedHoliday
+                                                                        ? 'bg-amber-50 cursor-not-allowed'
+                                                                        : 'cursor-pointer hover:bg-violet-50 hover:ring-1 hover:ring-violet-200'
+                                                                }`}
+                                                            title={isFuture ? 'Future date' : isClosedHoliday ? `Closed holiday • ${dateKey}` : `Click to edit • ${dateKey}`}
+                                                        >
+                                                            {holiday && !holiday.is_attendance_required ? (
+                                                                <span
+                                                                    className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-600 ring-1 ring-white"
+                                                                    title={holiday.title}
+                                                                    aria-label={`${holiday.title} holiday`}
+                                                                />
+                                                            ) : pendingRequestsMap[recordKey] ? (
+                                                                <span
+                                                                    className="inline-block w-6 h-6 leading-6 rounded bg-yellow-200 text-yellow-800 font-bold text-[10px]"
+                                                                    title="Pending approval by School Admin"
+                                                                >
+                                                                    ⏳
+                                                                </span>
+                                                            ) : rejectedRequestsMap[recordKey] ? (
+                                                                <span
+                                                                    className="inline-block w-6 h-6 leading-6 rounded bg-rose-200 text-rose-800 font-bold text-[10px]"
+                                                                    title="Rejected by School Admin"
+                                                                >
+                                                                    R
+                                                                </span>
+                                                            ) : status === 'present' ? (
+                                                                <span className="inline-block w-6 h-6 leading-6 rounded bg-emerald-600 text-white font-bold text-[11px]">
+                                                                    P
+                                                                </span>
+                                                            ) : status === 'absent' ? (
+                                                                <span className="inline-block w-6 h-6 leading-6 rounded bg-rose-600 text-white font-bold text-[11px]">
+                                                                    A
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-block w-6 h-6 leading-6 rounded text-slate-300 font-bold text-[11px]">
+                                                                    -
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="py-2.5 px-3 text-center bg-slate-50/80 font-bold text-slate-700">
+                                                    {presentCount} / {totalMarkedDays}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ══════════════════════════════════════════════════════════════════
+                Bulk Attendance Modal
+                ══════════════════════════════════════════════════════════════════ */}
+            {bulkAttendanceModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-violet-600 to-indigo-600 shrink-0">
+                            <div>
+                                <h3 className="text-base font-bold text-white">Bulk Attendance</h3>
+                                <p className="text-xs text-white/70">Update selected students for one date</p>
+                            </div>
+                            <button
+                                onClick={() => setBulkAttendanceModal(EMPTY_BULK_MODAL)}
+                                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors"
                             >
-                                Cancel
-                            </Button>
-                            <Button
-                                className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                                onClick={() => {
-                                    const { studentId, dateKey, currentKey, currentStatus, newStatus } = pendingCellAction!;
-                                    setNoteDialogOpen(false);
-                                    setPendingCellAction(null);
-                                    submitMonthlyCellUpdate(studentId, dateKey, currentKey, currentStatus, newStatus, noteDialogNote.trim() || undefined);
-                                }}
-                            >
-                                Submit Request
-                            </Button>
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-b bg-slate-50 space-y-3 shrink-0">
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Date
+                                <input
+                                    type="date"
+                                    value={bulkAttendanceModal.dateKey}
+                                    min={`${selectedMonth}-01`}
+                                    max={`${selectedMonth}-${String(daysInMonth).padStart(2, '0')}`}
+                                    onChange={(event) => setBulkAttendanceModal((prev) => ({ ...prev, dateKey: event.target.value }))}
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                                />
+                            </label>
+                            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                {bulkAttendanceModal.dateKey ? `${formatDateFull(bulkAttendanceModal.dateKey)} • ${getDayName(bulkAttendanceModal.dateKey)}` : 'Select a date'}
+                            </p>
+                        </div>
+
+                        <div className="overflow-auto min-h-0">
+                            <table className="w-full border-collapse text-xs">
+                                <thead className="sticky top-0 z-10 bg-slate-100">
+                                    <tr>
+                                        <th className="sticky left-0 z-20 bg-slate-100 border-b border-r p-3 text-left min-w-[200px] text-slate-700">
+                                            Student Name
+                                        </th>
+                                        <th className="border-b p-3 text-center min-w-[180px] text-slate-700">
+                                            Attendance Status
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredMonthlyStudents.filter((student) => selectedStudentIds[student.student_id]).map((student) => {
+                                        const status = bulkAttendanceModal.attendanceMap[student.student_id];
+                                        return (
+                                            <tr key={student.student_id} className="border-b hover:bg-slate-50/80">
+                                                <td className="sticky left-0 z-10 bg-white border-r p-3 font-bold text-slate-700">
+                                                    {student.first_name} {student.last_name}
+                                                    <div className="text-[10px] font-medium text-slate-400">Roll {student.roll_number || '-'}</div>
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <div className="flex gap-2 justify-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateBulkAttendanceStatus(student.student_id, 'present')}
+                                                            className={`flex-1 min-w-[90px] rounded-xl py-2.5 text-xs font-bold transition-colors ${status === 'present'
+                                                                ? 'bg-emerald-600 text-white'
+                                                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                                        >
+                                                            Present
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateBulkAttendanceStatus(student.student_id, 'absent')}
+                                                            className={`flex-1 min-w-[90px] rounded-xl py-2.5 text-xs font-bold transition-colors ${status === 'absent'
+                                                                ? 'bg-rose-600 text-white'
+                                                                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                                                        >
+                                                            Absent
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="p-4 border-t bg-slate-50">
+                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Note / Reason
+                                <textarea
+                                    className="mt-1 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                                    rows={2}
+                                    placeholder="Optional reason for past-date approval"
+                                    value={bulkAttendanceModal.note}
+                                    onChange={(event) => setBulkAttendanceModal((prev) => ({ ...prev, note: event.target.value }))}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t bg-slate-50">
+                            <p className="text-xs text-slate-500">
+                                {filteredMonthlyStudents.filter((student) => selectedStudentIds[student.student_id]).length} selected student(s).
+                            </p>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="rounded-xl"
+                                    onClick={() => setBulkAttendanceModal(EMPTY_BULK_MODAL)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleSubmitBulkAttendance}
+                                    disabled={isSavingBulkAttendance}
+                                    className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white"
+                                >
+                                    {isSavingBulkAttendance ? (
+                                        <><RefreshCw className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                                    ) : bulkAttendanceModal.dateKey < todayStr ? (
+                                        <><AlertTriangle className="w-4 h-4 mr-2" /> Submit for Approval</>
+                                    ) : (
+                                        <><Check className="w-4 h-4 mr-2" /> Save Bulk Attendance</>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Daily Bulk Submit Note Dialog (past date) ── */}
-            {dailyNoteDialogOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md mx-4 p-6 space-y-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
-                                <MessageSquare className="w-5 h-5" />
+            {/* ══════════════════════════════════════════════════════════════════
+                Edit Attendance Modal
+                ══════════════════════════════════════════════════════════════════ */}
+            {editModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg mx-4 overflow-hidden">
+
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b bg-gradient-to-r from-violet-600 to-indigo-600">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/20 rounded-xl">
+                                    <CalendarDays className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-white">Edit Attendance</h3>
+                                    <p className="text-xs text-white/70">Modify past attendance record</p>
+                                </div>
                             </div>
+                            <button
+                                onClick={() => setEditModal(EMPTY_EDIT_MODAL)}
+                                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+
+                            {/* Bulk Attendance option */}
+                            {/* Date + Student Info Cards */}
+                            <div className="grid grid-cols-2 gap-3">
+                                {/* Date Card */}
+                                <div className="bg-violet-50 border border-violet-100 rounded-xl p-3.5">
+                                    <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-1">Date</p>
+                                    <p className="text-sm font-bold text-violet-800 leading-tight">
+                                        {formatDateFull(editModal.dateKey)}
+                                    </p>
+                                    <div className="mt-1.5 flex items-center gap-1.5">
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getDayName(editModal.dateKey) === 'Sun' || getDayName(editModal.dateKey) === 'Sat'
+                                            ? 'bg-rose-100 text-rose-700'
+                                            : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                            {getDayName(editModal.dateKey)}
+                                        </span>
+                                        {editModal.isPast && (
+                                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                                                Past Date
+                                            </span>
+                                        )}
+                                        {!editModal.isPast && (
+                                            <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                                                Today
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Student Card */}
+                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
+                                    <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">Student</p>
+                                    <p className="text-sm font-bold text-indigo-800 leading-tight truncate">
+                                        {editModal.studentName}
+                                    </p>
+                                    {editModal.currentStatus && (
+                                        <div className="mt-1.5">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${editModal.currentStatus === 'present'
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : 'bg-rose-100 text-rose-700'
+                                                }`}>
+                                                Currently: {editModal.currentStatus.toUpperCase()}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {!editModal.currentStatus && (
+                                        <div className="mt-1.5">
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                                                Not Marked Yet
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Present / Absent Toggle */}
                             <div>
-                                <h3 className="text-base font-bold text-slate-800">Reason for Past-Date Edit</h3>
-                                <p className="text-xs text-slate-500">
-                                    Submitting attendance for{' '}
-                                    <span className="font-semibold text-slate-700">{selectedDate}</span>{' '}
-                                    requires School Admin approval.
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                                    Mark As
                                 </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setEditModal((prev) => ({ ...prev, selectedStatus: 'present' }))}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 transition-all ${editModal.selectedStatus === 'present'
+                                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-200'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50'
+                                            }`}
+                                    >
+                                        <Check className="w-4 h-4" />
+                                        Present
+                                    </button>
+                                    <button
+                                        onClick={() => setEditModal((prev) => ({ ...prev, selectedStatus: 'absent' }))}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border-2 transition-all ${editModal.selectedStatus === 'absent'
+                                            ? 'bg-rose-600 border-rose-600 text-white shadow-md shadow-rose-200'
+                                            : 'bg-white border-slate-200 text-slate-600 hover:border-rose-300 hover:bg-rose-50'
+                                            }`}
+                                    >
+                                        <X className="w-4 h-4" />
+                                        Absent
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Note / Reason (for past dates) */}
+                            {editModal.isPast && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <MessageSquare className="w-3.5 h-3.5" />
+                                        Note / Reason
+                                        {editModal.isPast && (
+                                            <span className="text-amber-500 font-normal normal-case text-[10px] bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                                                Required for admin approval
+                                            </span>
+                                        )}
+                                    </label>
+                                    <textarea
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 resize-none"
+                                        rows={2}
+                                        placeholder="e.g. Student was confirmed absent by parent call..."
+                                        value={editModal.note}
+                                        onChange={(e) => setEditModal((prev) => ({ ...prev, note: e.target.value }))}
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+
+                            {/* Past-date warning */}
+                            {editModal.isPast && (
+                                <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-amber-700 font-medium">
+                                        Past-date edits require <span className="font-bold">School Admin approval</span>. Your request will be submitted and the cell will show a pending indicator until approved.
+                                    </p>
+                                </div>
+                            )}
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
-                                Note / Reason <span className="text-slate-400 font-normal normal-case">(optional)</span>
-                            </label>
-                            <textarea
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 resize-none"
-                                rows={3}
-                                placeholder="e.g. Attendance was missed due to system outage..."
-                                value={dailyNoteNote}
-                                onChange={(e) => setDailyNoteNote(e.target.value)}
-                                autoFocus
-                            />
-                        </div>
-                        <div className="flex items-center gap-3 pt-1">
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center gap-3 px-6 pb-6">
                             <Button
                                 variant="outline"
                                 className="flex-1 rounded-xl"
-                                onClick={() => setDailyNoteDialogOpen(false)}
+                                onClick={() => setEditModal(EMPTY_EDIT_MODAL)}
                             >
                                 Cancel
                             </Button>
                             <Button
-                                className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                                onClick={() => {
-                                    setDailyNoteDialogOpen(false);
-                                    handleSaveDailyAttendance(dailyNoteNote.trim() || '');
-                                }}
+                                disabled={isSavingEdit}
+                                onClick={handleSubmitEdit}
+                                className={`flex-1 rounded-xl font-bold transition-all ${editModal.isPast
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    }`}
                             >
-                                Submit for Approval
+                                {isSavingEdit ? (
+                                    <><RefreshCw className="w-4 h-4 animate-spin mr-2" /> Saving...</>
+                                ) : editModal.isPast ? (
+                                    <><AlertTriangle className="w-4 h-4 mr-2" /> Submit for Approval</>
+                                ) : (
+                                    <><Check className="w-4 h-4 mr-2" /> Save Attendance</>
+                                )}
                             </Button>
                         </div>
                     </div>
@@ -1124,10 +1140,5 @@ export function AttendanceRegister() {
         </div>
     );
 }
-
-
-
-
-
 
 export default AttendanceRegister;

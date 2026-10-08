@@ -517,6 +517,25 @@ exports.updateAttendance = async (req, res) => {
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         const isPastDate = date < todayStr;
 
+        try {
+            const [calendarEntry] = await sequelize.query(
+                `SELECT title, type, is_attendance_required
+         FROM school_calendar
+         WHERE calendar_date = :date::date
+           AND is_active = true`,
+                { replacements: { date }, type: QueryTypes.SELECT }
+            );
+
+            if (calendarEntry && !calendarEntry.is_attendance_required) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot mark attendance: ${date} is ${calendarEntry.title} (${calendarEntry.type})`
+                });
+            }
+        } catch (e) {
+            // ignore calendar validation failures and allow the request to continue
+        }
+
         const students = await sequelize.query(
             `SELECT sf.id, sf.class_id, sf.division_id, sf.first_name, sf.last_name,
                     COALESCE(sf.school_id, c.school_id) AS school_id
