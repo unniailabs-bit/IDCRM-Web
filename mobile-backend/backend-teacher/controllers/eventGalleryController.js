@@ -29,7 +29,7 @@ exports.uploadEventGallery = async (req, res) => {
 
     // ✅ Check files
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: "At least one photo is required" });
+      return res.status(400).json({ success: false, message: "At least one photo or video is required" });
     }
 
     // 🔐 Teacher class-division validation using teacher_id
@@ -82,7 +82,7 @@ exports.uploadEventGallery = async (req, res) => {
 
     const event_id = event[0].id;
 
-    // 2️⃣ Insert photos
+    // 2️⃣ Insert photos / videos
     const uploadedPhotos = [];
     for (const file of req.files) {
       const photo_url = `/uploads/event-gallery/${file.filename}`;
@@ -106,10 +106,10 @@ exports.uploadEventGallery = async (req, res) => {
     // Notify parents in this class/division (background — does not block response)
     (async () => {
       try {
-        const photoCount = uploadedPhotos.length;
+        const mediaCount = uploadedPhotos.length;
         await sendPushToClass(teacher.school_id, class_id, division_id, {
-          title: "New Gallery Photos 📸",
-          body: `${event_title} — ${photoCount} photo${photoCount === 1 ? "" : "s"} added`,
+          title: "New Gallery Upload 📸🎥",
+          body: `${event_title} — ${mediaCount} item${mediaCount === 1 ? "" : "s"} added`,
           data: {
             type: "gallery",
             event_id: String(event_id),
