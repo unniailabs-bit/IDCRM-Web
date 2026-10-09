@@ -89,7 +89,18 @@ exports.getStudents = async (req, res) => {
        JOIN classes c ON s.class_id = c.id
        JOIN divisions d ON s.division_id = d.id
        WHERE s.school_id = :school_id
-       ORDER BY s.id ASC;`,
+       ORDER BY c.class_name ASC,
+                d.division_name ASC,
+                CASE
+                  WHEN BTRIM(s.roll_number::text) ~ '^[0-9]+$' THEN 0
+                  ELSE 1
+                END ASC,
+                CASE
+                  WHEN BTRIM(s.roll_number::text) ~ '^[0-9]+$' THEN BTRIM(s.roll_number::text)::numeric
+                  ELSE NULL
+                END ASC NULLS LAST,
+                LOWER(BTRIM(s.roll_number::text)) ASC,
+                LOWER(s.name) ASC;`,
       { replacements: { school_id }, type: QueryTypes.SELECT }
     );
 

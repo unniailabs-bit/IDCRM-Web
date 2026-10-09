@@ -256,6 +256,24 @@ const getClassStudentForms = async (req, res) => {
       }
     );
 
+    students.sort((a, b) => {
+      const rollA = String(a.roll_number ?? '').trim();
+      const rollB = String(b.roll_number ?? '').trim();
+      if (!rollA || !rollB) {
+        if (rollA) return -1;
+        if (rollB) return 1;
+      }
+
+      const rollOrder = rollA.localeCompare(rollB, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+      if (rollOrder !== 0) return rollOrder;
+      return String(a.first_name ?? '').localeCompare(String(b.first_name ?? ''), undefined, {
+        sensitivity: 'base',
+      });
+    });
+
     // Debug: Log actual student IDs returned
     console.log('📋 Student IDs returned:', students.map(s => `${s.id}`).join(', '));
 
