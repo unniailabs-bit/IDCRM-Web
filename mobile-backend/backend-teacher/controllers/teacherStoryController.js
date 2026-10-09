@@ -2,6 +2,7 @@ const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
+const { isValidAutoDeleteDate } = require("../../utils/autoDeleteDate");
 
 /**
  * UPLOAD STORY (Teacher)
@@ -15,7 +16,7 @@ exports.uploadStory = async (req, res) => {
         }
 
         // Parse data from req.body and normalize
-        let { class_id, division_id, story_type, category, story_content, caption } = req.body;
+        let { class_id, division_id, story_type, category, story_content, caption, auto_delete_at } = req.body;
 
         story_type = story_type?.toLowerCase().trim();
         category = category?.trim();
@@ -25,6 +26,13 @@ exports.uploadStory = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: "class_id, division_id, story_type and category are required"
+            });
+        }
+
+        if (!isValidAutoDeleteDate(auto_delete_at)) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid auto-delete date today or later is required"
             });
         }
 
@@ -58,9 +66,9 @@ exports.uploadStory = async (req, res) => {
         const result = await sequelize.query(
             `
             INSERT INTO teacher_stories
-            (teacher_id, school_id, class_id, division_id, story_type, category, story_content, caption, media_url)
+            (teacher_id, school_id, class_id, division_id, story_type, category, story_content, caption, media_url, auto_delete_at)
             VALUES
-            (:teacher_id, :school_id, :class_id, :division_id, :story_type, :category, :story_content, :caption, :media_url)
+            (:teacher_id, :school_id, :class_id, :division_id, :story_type, :category, :story_content, :caption, :media_url, :auto_delete_at)
             RETURNING *
             `,
             {
@@ -73,7 +81,8 @@ exports.uploadStory = async (req, res) => {
                     category,
                     story_content: story_content || null,
                     caption: caption || null,
-                    media_url
+                    media_url,
+                    auto_delete_at
                 },
                 type: QueryTypes.INSERT
             }
@@ -106,6 +115,7 @@ exports.getTeacherStories = async (req, res) => {
             SELECT *
             FROM teacher_stories
             WHERE teacher_id = :teacher_id
+                              AND (auto_delete_at IS NULL OR auto_delete_at >= CURRENT_DATE)
             ORDER BY created_at DESC
             `,
             {

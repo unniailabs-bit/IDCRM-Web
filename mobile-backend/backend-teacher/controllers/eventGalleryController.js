@@ -1,6 +1,7 @@
 const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToClass } = require("../../utils/pushNotification");
+const { isValidAutoDeleteDate } = require("../../utils/autoDeleteDate");
 
 /**
  * POST - Upload Event Gallery (Single / Multiple Photos)
@@ -20,11 +21,15 @@ exports.uploadEventGallery = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    const { event_title, event_category, event_date, class_id, division_id } = req.body;
+    const { event_title, event_category, event_date, class_id, division_id, auto_delete_at } = req.body;
 
     // ✅ Validate required fields
     if (!event_title || !event_category || !event_date || !class_id || !division_id) {
       return res.status(400).json({ success: false, message: "All fields are required" });
+    }
+
+    if (!isValidAutoDeleteDate(auto_delete_at)) {
+      return res.status(400).json({ success: false, message: "A valid auto-delete date today or later is required" });
     }
 
     // ✅ Check files
@@ -62,8 +67,8 @@ exports.uploadEventGallery = async (req, res) => {
     const [event] = await sequelize.query(
       `
       INSERT INTO events
-      (event_title, event_category, event_date, class_id, division_id, created_by_teacher_id, school_id)
-      VALUES (:event_title, :event_category, :event_date, :class_id, :division_id, :teacher_id, :school_id)
+      (event_title, event_category, event_date, class_id, division_id, created_by_teacher_id, school_id, auto_delete_at)
+      VALUES (:event_title, :event_category, :event_date, :class_id, :division_id, :teacher_id, :school_id, :auto_delete_at)
       RETURNING *
       `,
       {
@@ -74,7 +79,8 @@ exports.uploadEventGallery = async (req, res) => {
           class_id,
           division_id,
           teacher_id: teacher.id,
-          school_id: teacher.school_id
+          school_id: teacher.school_id,
+          auto_delete_at
         },
         type: QueryTypes.INSERT
       }
@@ -153,6 +159,7 @@ exports.getEventGallery = async (req, res) => {
         e.event_title,
         e.event_category,
         e.event_date,
+        e.auto_delete_at,
         g.id AS photo_id,
         g.photo_url
       FROM events e
@@ -160,6 +167,7 @@ exports.getEventGallery = async (req, res) => {
       WHERE e.created_by_teacher_id = :teacher_id
         AND e.school_id = :school_id
         AND e.is_active = true
+        AND (e.auto_delete_at IS NULL OR e.auto_delete_at >= CURRENT_DATE)
       ORDER BY e.event_date DESC, g.id ASC
       `,
       {

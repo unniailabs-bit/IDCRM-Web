@@ -16,6 +16,32 @@ exports.createSchoolTimetable = async (req, res) => {
             return res.status(400).json({ success: false, message: "title, class_id, and division_id are required" });
         }
 
+        const [assignedDivision] = await sequelize.query(
+            `SELECT d.id
+             FROM divisions d
+             JOIN classes c ON c.id = d.class_id
+             WHERE d.id = :division_id
+               AND d.class_id = :class_id
+               AND d.teacher_id = :teacher_id
+               AND c.school_id = :school_id`,
+            {
+                replacements: {
+                    division_id,
+                    class_id,
+                    teacher_id: teacher.id,
+                    school_id: teacher.school_id
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        if (!assignedDivision) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only upload timetables for your assigned class and division"
+            });
+        }
+
         const media_url = `/uploads/school-timetables/${req.file.filename}`;
 
         const [result] = await sequelize.query(
@@ -66,16 +92,17 @@ exports.getSchoolTimetables = async (req, res) => {
     try {
         const teacher = req.teacher;
 
-        // Fetch timetables for the teacher's school that are not deleted
         const timetables = await sequelize.query(
             `SELECT st.*, c.class_name, d.division_name 
              FROM school_timetables st
              JOIN classes c ON c.id = st.class_id
              JOIN divisions d ON d.id = st.division_id
-             WHERE st.school_id = :school_id AND st.is_deleted = false
+                         WHERE st.school_id = :school_id
+                             AND d.teacher_id = :teacher_id
+                             AND st.is_deleted = false
              ORDER BY st.created_at DESC`,
             {
-                replacements: { school_id: teacher.school_id },
+                replacements: { school_id: teacher.school_id, teacher_id: teacher.id },
                 type: QueryTypes.SELECT
             }
         );
@@ -95,6 +122,56 @@ exports.updateSchoolTimetable = async (req, res) => {
         const { id } = req.params;
         const { title, status, class_id, division_id } = req.body;
 
+        const [existingTimetable] = await sequelize.query(
+            `SELECT st.class_id, st.division_id
+             FROM school_timetables st
+             JOIN divisions d ON d.id = st.division_id
+             WHERE st.id = :id
+               AND st.school_id = :school_id
+               AND st.is_deleted = false
+               AND d.teacher_id = :teacher_id`,
+            {
+                replacements: {
+                    id,
+                    school_id: teacher.school_id,
+                    teacher_id: teacher.id
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        if (!existingTimetable) {
+            return res.status(404).json({ success: false, message: "Timetable not found" });
+        }
+
+        const targetClassId = class_id || existingTimetable.class_id;
+        const targetDivisionId = division_id || existingTimetable.division_id;
+        const [assignedDivision] = await sequelize.query(
+            `SELECT d.id
+             FROM divisions d
+             JOIN classes c ON c.id = d.class_id
+             WHERE d.id = :division_id
+               AND d.class_id = :class_id
+               AND d.teacher_id = :teacher_id
+               AND c.school_id = :school_id`,
+            {
+                replacements: {
+                    division_id: targetDivisionId,
+                    class_id: targetClassId,
+                    teacher_id: teacher.id,
+                    school_id: teacher.school_id
+                },
+                type: QueryTypes.SELECT
+            }
+        );
+
+        if (!assignedDivision) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only update timetables for your assigned class and division"
+            });
+        }
+
         let media_url = undefined;
         if (req.file) {
             media_url = `/uploads/school-timetables/${req.file.filename}`;
@@ -108,12 +185,15 @@ exports.updateSchoolTimetable = async (req, res) => {
                 division_id = COALESCE(:division_id, division_id),
                 media_url = COALESCE(:media_url, media_url),
                 updated_at = NOW()
-             WHERE id = :id AND school_id = :school_id AND is_deleted = false
+                         WHERE id = :id AND school_id = :school_id AND is_deleted = false
+                             AND class_id = :current_class_id AND division_id = :current_division_id
              RETURNING *`,
             {
                 replacements: {
                     id,
                     school_id: teacher.school_id,
+                    current_class_id: existingTimetable.class_id,
+                    current_division_id: existingTimetable.division_id,
                     title: title || null,
                     status: status || null,
                     class_id: class_id || null,
@@ -148,10 +228,15 @@ exports.deleteSchoolTimetable = async (req, res) => {
 
         const [result] = await sequelize.query(
             `UPDATE school_timetables SET is_deleted = true, updated_at = NOW()
-             WHERE id = :id AND school_id = :school_id AND is_deleted = false
+                         WHERE id = :id AND school_id = :school_id AND is_deleted = false
+                             AND EXISTS (
+                                     SELECT 1 FROM divisions d
+                                     WHERE d.id = school_timetables.division_id
+                                         AND d.teacher_id = :teacher_id
+                             )
              RETURNING id`,
             {
-                replacements: { id, school_id: teacher.school_id },
+                replacements: { id, school_id: teacher.school_id, teacher_id: teacher.id },
                 type: QueryTypes.UPDATE
             }
         );

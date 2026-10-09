@@ -1,5 +1,6 @@
 const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
+const { cleanupExpiredUploads } = require("../../utils/autoDeleteCleanup");
 
 /**
  * GET STORIES FOR STUDENT
@@ -7,6 +8,7 @@ const { QueryTypes } = require("sequelize");
  */
 exports.getStudentStories = async (req, res) => {
     try {
+        await cleanupExpiredUploads();
         const student = req.student; // student info from auth middleware
         if (!student || !student.id) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -22,11 +24,15 @@ exports.getStudentStories = async (req, res) => {
                 story_content,
                 caption,
                 media_url,
-                created_at
+                created_at,
+                auto_delete_at
             FROM teacher_stories
             WHERE class_id = :class_id
               AND division_id = :division_id
-              AND created_at >= NOW() - INTERVAL '24 hours'
+                            AND (
+                                auto_delete_at >= CURRENT_DATE
+                                OR (auto_delete_at IS NULL AND created_at >= NOW() - INTERVAL '24 hours')
+                            )
             ORDER BY created_at DESC
             `,
             {

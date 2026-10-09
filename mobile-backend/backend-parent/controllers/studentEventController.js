@@ -1,11 +1,13 @@
 const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
+const { cleanupExpiredUploads } = require("../../utils/autoDeleteCleanup");
 
 // =======================================
 // GET - Student Events (Class + Division)
 // =======================================
 exports.getStudentEvents = async (req, res) => {
   try {
+    await cleanupExpiredUploads();
     /**
      * 🔐 Logged-in student
      * req.parent comes from parentAuth middleware
@@ -39,6 +41,7 @@ exports.getStudentEvents = async (req, res) => {
         e.event_title,
         e.event_category,
         e.event_date,
+        e.auto_delete_at,
         e.class_id,
         e.division_id,
         e.created_at,
@@ -67,6 +70,7 @@ exports.getStudentEvents = async (req, res) => {
         e.class_id = :classId
         AND e.division_id = :divisionId
         AND e.is_active = true
+        AND (e.auto_delete_at IS NULL OR e.auto_delete_at >= CURRENT_DATE)
 
       GROUP BY e.id
       ORDER BY e.event_date DESC

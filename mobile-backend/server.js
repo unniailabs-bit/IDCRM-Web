@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const fs = require("fs");
 
 const path = require("path");
+const { startAutoDeleteCleanup } = require("./utils/autoDeleteCleanup");
 
 dotenv.config();
 
@@ -169,6 +170,7 @@ async function applyMigrations() {
 }
 
 ensureParentAccountSchema().then(applyMigrations).finally(() => {
+  startAutoDeleteCleanup();
   app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
   });
