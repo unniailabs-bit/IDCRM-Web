@@ -50,4 +50,6 @@ router.post(
   mcqController.uploadMcqImageHandler
 );
 
+router.delete("/mcq/:mcq_id/image", teacherAuth, mcqController.deleteMcqImageHandler);
+
 module.exports = router;

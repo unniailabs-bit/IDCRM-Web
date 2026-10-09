@@ -7,6 +7,27 @@ const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
 
+function removeMcqImageFile(imageUrl) {
+  if (typeof imageUrl !== "string") return;
+
+  const normalizedUrl = imageUrl.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!normalizedUrl.startsWith("uploads/mcq-images/")) return;
+
+  const imagesDirectory = path.resolve(__dirname, "../../uploads/mcq-images");
+  const imagePath = path.resolve(imagesDirectory, path.basename(normalizedUrl));
+  if (!imagePath.startsWith(`${imagesDirectory}${path.sep}`)) return;
+
+  try {
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
+  } catch (error) {
+    console.warn("Could not remove MCQ image file:", imagePath, error.message);
+  }
+}
+
+function removeMcqImageFiles(rows) {
+  for (const row of rows) removeMcqImageFile(row.image_url);
+}
+
 // -----------------------------
 // Multer setup for file upload
 // - Supports:
@@ -192,6 +213,15 @@ exports.deleteMcq = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
+    const [mcq] = await sequelize.query(
+      `SELECT image_url FROM mcq_questions WHERE id = :id AND teacher_id = :teacher_id`,
+      { replacements: { id, teacher_id: teacher.id }, type: QueryTypes.SELECT }
+    );
+
+    if (!mcq) {
+      return res.status(404).json({ success: false, message: "MCQ not found" });
+    }
+
     await sequelize.query(
       `DELETE FROM mcq_questions WHERE id = :id AND teacher_id = :teacher_id`,
       {
@@ -199,6 +229,7 @@ exports.deleteMcq = async (req, res) => {
         type: QueryTypes.DELETE
       }
     );
+    removeMcqImageFile(mcq.image_url);
 
     return res.json({ success: true, message: "MCQ deleted successfully" });
 
@@ -226,6 +257,19 @@ exports.deleteMcqGroupByTitle = async (req, res) => {
     // Handle NULL subject_id for General MCQs
     const subjectFilter = subject_id ? "= :subject_id" : "IS NULL";
 
+    const imageRows = await sequelize.query(
+      `SELECT image_url FROM mcq_questions
+       WHERE teacher_id = :teacher_id
+         AND class_id = :class_id
+         AND division_id = :division_id
+         AND title = :title
+         AND subject_id ${subjectFilter}`,
+      {
+        replacements: { teacher_id: teacher.id, class_id, division_id, title, subject_id },
+        type: QueryTypes.SELECT
+      }
+    );
+
     await sequelize.query(
       `DELETE FROM mcq_questions 
        WHERE teacher_id = :teacher_id 
@@ -244,6 +288,7 @@ exports.deleteMcqGroupByTitle = async (req, res) => {
         type: QueryTypes.DELETE
       }
     );
+    removeMcqImageFiles(imageRows);
 
     return res.json({
       success: true,
@@ -274,6 +319,12 @@ exports.deleteTeacherMcqs = async (req, res) => {
       });
     }
 
+    const imageRows = await sequelize.query(
+      `SELECT image_url FROM mcq_questions
+       WHERE teacher_id = :teacher_id AND id IN (:finalIds)`,
+      { replacements: { teacher_id: teacher.id, finalIds }, type: QueryTypes.SELECT }
+    );
+
     await sequelize.query(
       `DELETE FROM mcq_questions 
        WHERE teacher_id = :teacher_id 
@@ -283,6 +334,7 @@ exports.deleteTeacherMcqs = async (req, res) => {
         type: sequelize.QueryTypes.DELETE
       }
     );
+    removeMcqImageFiles(imageRows);
 
     return res.json({
       success: true,
@@ -866,7 +918,7 @@ exports.uploadMcqImageHandler = async (req, res) => {
     }
 
     const [mcq] = await sequelize.query(
-      `SELECT id FROM mcq_questions WHERE id = :mcq_id AND teacher_id = :teacher_id`,
+      `SELECT id, image_url FROM mcq_questions WHERE id = :mcq_id AND teacher_id = :teacher_id`,
       {
         replacements: { mcq_id, teacher_id: teacher.id },
         type: QueryTypes.SELECT
@@ -887,6 +939,7 @@ exports.uploadMcqImageHandler = async (req, res) => {
         type: QueryTypes.UPDATE
       }
     );
+    removeMcqImageFile(mcq.image_url);
 
     return res.json({
       success: true,
@@ -903,6 +956,44 @@ exports.uploadMcqImageHandler = async (req, res) => {
       success: false,
       message: error.message || "Failed to upload image"
     });
+  }
+};
+
+// Permanently remove only the image attached to an MCQ, retaining the question.
+exports.deleteMcqImageHandler = async (req, res) => {
+  try {
+    const teacher = req.teacher;
+    const { mcq_id } = req.params;
+
+    if (!teacher || !teacher.id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const [mcq] = await sequelize.query(
+      `SELECT image_url FROM mcq_questions WHERE id = :mcq_id AND teacher_id = :teacher_id`,
+      {
+        replacements: { mcq_id, teacher_id: teacher.id },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!mcq) {
+      return res.status(404).json({ success: false, message: "MCQ not found or not yours" });
+    }
+
+    await sequelize.query(
+      `UPDATE mcq_questions SET image_url = NULL WHERE id = :mcq_id AND teacher_id = :teacher_id`,
+      {
+        replacements: { mcq_id, teacher_id: teacher.id },
+        type: QueryTypes.UPDATE
+      }
+    );
+    removeMcqImageFile(mcq.image_url);
+
+    return res.json({ success: true, message: "MCQ image permanently deleted" });
+  } catch (error) {
+    console.error("Delete MCQ Image Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to delete MCQ image" });
   }
 };
 
