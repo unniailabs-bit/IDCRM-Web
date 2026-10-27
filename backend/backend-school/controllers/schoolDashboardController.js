@@ -11,22 +11,28 @@ const getSchoolDashboardOverview = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Unauthorized: School ID missing' });
     }
 
-    // Get total students
+    // Get total students from student_forms (approved forms = actual students in the system)
     const totalStudents = await sequelize.query(
       `SELECT COUNT(*) as count 
-       FROM students 
-       WHERE school_id = :school_id`,
+       FROM student_forms 
+       WHERE school_id = :school_id AND status = 'approved'`,
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
     );
 
-    // Get new admissions for current year
-    const currentYear = new Date().getFullYear();
+    // Get new admissions for current academic year (April-March)
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-indexed
+    const currentYear = now.getFullYear();
+    const academicYearStart = currentMonth >= 3
+      ? `${currentYear}-04-01`
+      : `${currentYear - 1}-04-01`;
     const newAdmissions = await sequelize.query(
       `SELECT COUNT(*) as count 
-       FROM students 
+       FROM student_forms 
        WHERE school_id = :school_id 
-       AND EXTRACT(YEAR FROM "createdAt") = :current_year`,
-      { replacements: { school_id: schoolId, current_year: currentYear }, type: QueryTypes.SELECT }
+       AND status = 'approved'
+       AND created_at >= :academic_year_start`,
+      { replacements: { school_id: schoolId, academic_year_start: academicYearStart }, type: QueryTypes.SELECT }
     );
 
     // Get total classes
@@ -46,7 +52,7 @@ const getSchoolDashboardOverview = async (req, res) => {
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
     );
 
-    // Get IDs generated
+    // Get IDs generated (count approved student_forms that have generated IDs)
     const idsGenerated = await sequelize.query(
       `SELECT COUNT(*) as count 
        FROM student_generated_ids 
@@ -70,7 +76,7 @@ const getSchoolDashboardOverview = async (req, res) => {
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
     );
 
-    // Calculate completion rate
+    // Calculate completion rate based on total approved forms vs generated IDs
     const studentsCount = parseInt(totalStudents[0]?.count || 0);
     const idsCount = parseInt(idsGenerated[0]?.count || 0);
     const completionRate = studentsCount > 0 ? ((idsCount / studentsCount) * 100).toFixed(1) : 0;
@@ -106,12 +112,10 @@ const getClasswiseIdStatus = async (req, res) => {
     const classData = await sequelize.query(
       `SELECT 
          c.class_name as class,
-         COUNT(DISTINCT s.id) as students,
+         COUNT(DISTINCT sf.id) as students,
          COUNT(DISTINCT sgi.id) as completed
        FROM classes c
-       LEFT JOIN divisions d ON d.class_id = c.id
-       LEFT JOIN students s ON s.division_id = d.id AND s.school_id = :school_id
-       LEFT JOIN student_forms sf ON sf.class_id = c.id AND sf.school_id = :school_id
+       LEFT JOIN student_forms sf ON sf.class_id = c.id AND sf.school_id = :school_id AND sf.status = 'approved'
        LEFT JOIN student_generated_ids sgi ON sgi.student_form_id = sf.id AND sgi.school_id = :school_id
        WHERE c.school_id = :school_id
        GROUP BY c.id, c.class_name
@@ -179,11 +183,11 @@ const getQuickStats = async (req, res) => {
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
     );
 
-    // Get completion rate
+    // Get completion rate based on approved student_forms
     const totalStudents = await sequelize.query(
       `SELECT COUNT(*) as count 
-       FROM students 
-       WHERE school_id = :school_id`,
+       FROM student_forms 
+       WHERE school_id = :school_id AND status = 'approved'`,
       { replacements: { school_id: schoolId }, type: QueryTypes.SELECT }
     );
 

@@ -1545,6 +1545,7 @@
     "schoolAdminDashboard": {
         "title": "शाळा डॅशबोर्ड",
         "academicYear": "शैक्षणिक वर्ष: 2024-2025",
+        "academicYearLabel": "शैक्षणिक वर्ष",
         "totalStudents": "एकूण विद्यार्थी",
         "newAdmissions": "+{{count}} नवीन प्रवेश",
         "activeClasses": "सक्रिय वर्ग",

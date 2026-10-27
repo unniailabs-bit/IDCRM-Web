@@ -47,6 +47,20 @@ import {
 } from '@/api/schoolDashboard';
 import { toast } from 'sonner';
 
+// Helper: compute academic year based on Indian academic calendar (April–March)
+function getAcademicYear(): string {
+  const now = new Date();
+  const month = now.getMonth(); // 0 = Jan, 3 = Apr
+  const year = now.getFullYear();
+  if (month >= 3) {
+    // April or later → current year is start
+    return `${year}-${year + 1}`;
+  } else {
+    // Jan–Mar → previous year is start
+    return `${year - 1}-${year}`;
+  }
+}
+
 export function SchoolAdminDashboard() {
   const { t } = useTranslation();
   const { userData } = useAuth();
@@ -59,6 +73,8 @@ export function SchoolAdminDashboard() {
   const [notificationMessage, setNotificationMessage] = useState('');
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [sendingNotification, setSendingNotification] = useState(false);
+
+  const academicYear = getAcademicYear();
 
   useEffect(() => {
     loadDashboardData();
@@ -124,7 +140,7 @@ export function SchoolAdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <p className="text-sm text-gray-500">{t('schoolAdminDashboard.academicYear')}</p>
+          <p className="text-sm text-gray-500">{t('schoolAdminDashboard.academicYearLabel')}: {academicYear}</p>
           <Button
             variant="outline"
             size="icon"

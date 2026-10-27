@@ -1608,6 +1608,7 @@
     "schoolAdminDashboard": {
         "title": "School Dashboard",
         "academicYear": "Academic Year: 2024-2025",
+        "academicYearLabel": "Academic Year",
         "totalStudents": "Total Students",
         "newAdmissions": "+{{count}} new admissions",
         "activeClasses": "Active Classes",
