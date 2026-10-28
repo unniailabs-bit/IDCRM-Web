@@ -20,4 +20,7 @@ router.patch("/profile", parentAuth, parentController.updateParentProfile);
 // Diagnostic: check login state for a phone number (no auth needed, returns no passwords)
 router.get("/debug-login", parentController.debugLogin);
 
+// Admin: force-reset password for a phone number
+router.post("/admin-reset-password", parentController.adminResetPassword);
+
 module.exports = router;

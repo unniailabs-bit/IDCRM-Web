@@ -444,3 +444,80 @@ exports.debugLogin = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// -----------------------------
+// Admin Reset Password
+// POST /api/parent/admin-reset-password
+// Body: { phone, new_password, admin_key }
+// Resets parent_accounts + all linked student_forms passwords
+// -----------------------------
+exports.adminResetPassword = async (req, res) => {
+  try {
+    const { phone, new_password, admin_key } = req.body;
+
+    // Simple admin key protection — set ADMIN_SECRET in your .env
+    const adminSecret = process.env.ADMIN_SECRET || "shikshalay_admin_2026";
+    if (admin_key !== adminSecret) {
+      return res.status(403).json({ success: false, message: "Invalid admin key" });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone || !new_password) {
+      return res.status(400).json({
+        success: false,
+        message: "phone and new_password are required",
+      });
+    }
+
+    const { phoneSqlExpr, parentAccountsTableExists } = require("../services/parentAccountService");
+    const hashed = await hashPasswordIfNeeded(new_password);
+    const results = { parent_account_updated: false, students_updated: 0 };
+
+    // 1. Update parent_accounts
+    if (await parentAccountsTableExists()) {
+      const [parentAccount] = await sequelize.query(
+        `SELECT id FROM parent_accounts WHERE ${phoneSqlExpr("phone")} = :phone LIMIT 1`,
+        { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
+      );
+
+      if (parentAccount) {
+        await sequelize.query(
+          `UPDATE parent_accounts SET password = :password, updated_at = NOW() WHERE id = :id`,
+          { replacements: { password: hashed, id: parentAccount.id }, type: QueryTypes.UPDATE },
+        );
+        results.parent_account_updated = true;
+        results.parent_account_id = parentAccount.id;
+
+        // 2. Update ALL linked student_forms passwords
+        await sequelize.query(
+          `UPDATE student_forms sf
+           SET password = :password
+           FROM parent_student_links psl
+           WHERE psl.student_form_id = sf.id
+             AND psl.parent_account_id = :parentAccountId`,
+          { replacements: { password: hashed, parentAccountId: parentAccount.id }, type: QueryTypes.UPDATE },
+        );
+      }
+    }
+
+    // 3. Also update student_forms found by phone directly (in case not linked yet)
+    await sequelize.query(
+      `UPDATE student_forms
+       SET password = :password
+       WHERE ${phoneSqlExpr("father_phone")} = :phone
+          OR ${phoneSqlExpr("mother_phone")} = :phone`,
+      { replacements: { password: hashed, phone: normalizedPhone }, type: QueryTypes.UPDATE },
+    );
+
+    console.log(`[AdminReset] Password reset for phone ${normalizedPhone}:`, results);
+
+    return res.json({
+      success: true,
+      message: "Password reset successful for phone " + normalizedPhone,
+      results,
+    });
+  } catch (error) {
+    console.error("Admin Reset Password Error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

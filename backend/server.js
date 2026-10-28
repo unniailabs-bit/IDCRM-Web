@@ -48,6 +48,7 @@ const formLinkRoutes = require('./backend-teacher/routes/formLinkRoutes');
 const trustRegistrationRoutes = require('./backend-trust/routes/trustRegistrationRoutes');
 const studentFormRoutes = require('./backend-school/routes/studentFormRoutes');
 const attendanceEditRequestsRoutes = require('./backend-school/routes/attendanceEditRequestsRoutes');
+const resetPasswordRoutes = require('./backend-school/routes/resetPasswordRoutes');
 // ------------------- App Setup -------------------
 const app = express();
 app.use(express.json({ limit: '100mb' }));
@@ -172,6 +173,7 @@ app.use('/api/school/student', studentRoutes);
 app.use('/api/school/appointments', require('./backend-school/routes/appointmentRoutes'));
 app.use("/api/school/student-forms", studentFormRoutes);
 app.use("/api/school/attendance-edit-requests", attendanceEditRequestsRoutes);
+app.use('/api/school', resetPasswordRoutes);
 app.use('/api/school/dashboard', schoolDashboardRoutes);
 app.use('/api/school/settings', schoolSettingsRoutes);
 app.use('/api/school/reports', schoolReportsRoutes);

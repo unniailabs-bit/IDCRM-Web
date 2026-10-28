@@ -20,6 +20,7 @@ import {
   Calendar,
   MessageSquare,
   ClipboardList,
+  Key,
 } from 'lucide-react';
 
 import { useAuth } from '../hooks/useAuth';
@@ -71,6 +72,7 @@ import { HolidayCalendar } from '../components/roles/school-admin/HolidayCalenda
 import { AppointmentManagement } from '../components/roles/school-admin/AppointmentManagement';
 
 import { AttendanceEditRequests } from '../components/roles/school-admin/AttendanceEditRequests';
+import { ResetStudentPassword } from '../components/roles/school-admin/ResetStudentPassword';
 
 import { TeacherDashboard } from '../components/roles/teacher/TeacherDashboard';
 import { MyClasses } from '../components/roles/teacher/MyClasses';
@@ -257,6 +259,12 @@ const getMenuItems = (userRole: UserRole, t: any): MenuItem[] => {
           path: '/school-dashboard/attendance-edit-requests',
         },
         {
+          id: 'reset-password',
+          label: 'Reset App Password',
+          icon: Key,
+          path: '/school-dashboard/reset-password',
+        },
+        {
           id: 'school-notifications',
           label: t('menu.school-notifications'),
           icon: Bell,
@@ -306,6 +314,12 @@ const getMenuItems = (userRole: UserRole, t: any): MenuItem[] => {
           label: t('menu.import-students'),
           icon: FileUp,
           path: '/teacher-dashboard/importstudents',
+        },
+        {
+          id: 'reset-password',
+          label: 'Reset App Password',
+          icon: Key,
+          path: '/teacher-dashboard/reset-password',
         },
       ];
     default:
@@ -516,6 +530,7 @@ export function AppRoutes() {
                 <Route path="/settings" element={<SchoolSettings />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/attendance-edit-requests" element={<AttendanceEditRequests />} />
+                <Route path="/reset-password" element={<ResetStudentPassword />} />
                 <Route path="/id-template" element={<IDCardGallery />} />
                 <Route path="/id-preview" element={<IDCardPreview />} />
                 <Route path="/id-editor" element={<EditorPage />} />
@@ -551,6 +566,7 @@ export function AppRoutes() {
                 <Route path="/importstudents" element={<ImportStudents />} />
                 <Route path="/upload-images" element={<TeacherImageUploadGrid />} />
                 <Route path="/student-list" element={<StudentList />} />
+                <Route path="/reset-password" element={<ResetStudentPassword />} />
               </Routes>
             </DashboardLayout>
           </ProtectedRoute>
