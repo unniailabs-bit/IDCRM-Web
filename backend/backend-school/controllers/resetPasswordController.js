@@ -50,7 +50,7 @@ exports.resetStudentPassword = async (req, res) => {
 
         // 1. Find students in THIS school matching the phone
         const students = await sequelize.query(
-            `SELECT id, first_name, last_name, father_phone, mother_phone, roll_number,
+            `SELECT sf.id, sf.first_name, sf.last_name, sf.father_phone, sf.mother_phone, sf.roll_number,
               COALESCE(d.class_name, c.class_name) AS class_name, d.division_name
        FROM student_forms sf
        LEFT JOIN divisions d ON sf.division_id = d.id
