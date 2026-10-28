@@ -17,6 +17,7 @@ const {
   hashPasswordIfNeeded,
   syncParentPasswordToLinkedStudents,
   parentAccountsTableExists,
+  refreshParentToken,
 } = parentAccountService;
 
 // Legacy export kept for any external requires
@@ -93,6 +94,31 @@ exports.parentLogin = async (req, res) => {
     });
   } catch (error) {
     console.error("Parent Login Error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// -----------------------------
+// Refresh Token
+// Accepts an expired token and re-issues a fresh JWT (90d).
+// The mobile app should call this when it receives a 401 from any endpoint.
+// -----------------------------
+exports.refreshToken = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1] || req.body.token;
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Token is required" });
+    }
+    const newToken = await refreshParentToken(token);
+    if (!newToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token — please login again",
+      });
+    }
+    return res.json({ success: true, token: newToken });
+  } catch (error) {
+    console.error("Refresh Token Error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -236,7 +262,6 @@ exports.switchStudent = async (req, res) => {
 // -----------------------------
 // Parent Dashboard (with School Info)
 // -----------------------------
-
 exports.getParentDashboard = async (req, res) => {
   try {
     const parentId = req.parent.id;
@@ -325,6 +350,97 @@ exports.getParentDashboard = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Parent Dashboard Error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// -----------------------------
+// Debug Login — diagnose why a phone number fails to login
+// GET /api/parent/debug-login?phone=9876543210
+// Returns NO passwords, only diagnostic info
+// -----------------------------
+exports.debugLogin = async (req, res) => {
+  try {
+    const phone = req.query.phone;
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ success: false, message: "phone query param required (10 digits)" });
+    }
+
+    const { QueryTypes } = require("sequelize");
+    const { phoneSqlExpr, parentAccountsTableExists } = require("../services/parentAccountService");
+
+    // 1. Check parent_accounts
+    let parentAccount = null;
+    if (await parentAccountsTableExists()) {
+      const [pa] = await sequelize.query(
+        `SELECT id, phone, email, name, 
+                CASE WHEN password IS NULL THEN 'NULL'
+                     WHEN password LIKE '$2%' THEN 'bcrypt'
+                     ELSE 'plaintext' END AS password_type,
+                created_at, updated_at
+         FROM parent_accounts
+         WHERE ${phoneSqlExpr("phone")} = :phone LIMIT 1`,
+        { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
+      );
+      parentAccount = pa || null;
+    }
+
+    // 2. Check student_forms by father_phone
+    const studentsByFather = await sequelize.query(
+      `SELECT id, first_name, last_name, father_phone, class_id, division_id, school_id,
+              CASE WHEN password IS NULL THEN 'NULL'
+                   WHEN password LIKE '$2%' THEN 'bcrypt'
+                   ELSE 'plaintext' END AS password_type
+       FROM student_forms
+       WHERE ${phoneSqlExpr("father_phone")} = :phone
+       ORDER BY id ASC`,
+      { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
+    );
+
+    // 3. Check student_forms by mother_phone
+    const studentsByMother = await sequelize.query(
+      `SELECT id, first_name, last_name, mother_phone, class_id, division_id, school_id,
+              CASE WHEN password IS NULL THEN 'NULL'
+                   WHEN password LIKE '$2%' THEN 'bcrypt'
+                   ELSE 'plaintext' END AS password_type
+       FROM student_forms
+       WHERE ${phoneSqlExpr("mother_phone")} = :phone
+       ORDER BY id ASC`,
+      { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
+    );
+
+    // 4. Check parent_student_links
+    let linkedStudents = [];
+    if (parentAccount) {
+      linkedStudents = await sequelize.query(
+        `SELECT psl.student_form_id, sf.first_name, sf.last_name, sf.father_phone,
+                CASE WHEN sf.password IS NULL THEN 'NULL'
+                     WHEN sf.password LIKE '$2%' THEN 'bcrypt'
+                     ELSE 'plaintext' END AS password_type
+         FROM parent_student_links psl
+         JOIN student_forms sf ON sf.id = psl.student_form_id
+         WHERE psl.parent_account_id = :parentAccountId
+         ORDER BY sf.id ASC`,
+        { replacements: { parentAccountId: parentAccount.id }, type: QueryTypes.SELECT },
+      );
+    }
+
+    return res.json({
+      success: true,
+      normalized_phone: normalizedPhone,
+      parent_account: parentAccount,
+      students_by_father_phone: studentsByFather,
+      students_by_mother_phone: studentsByMother,
+      linked_students: linkedStudents,
+      diagnosis: !parentAccount
+        ? "No parent_accounts record. Will use legacy student_forms lookup."
+        : linkedStudents.length === 0
+          ? "Parent account exists but NO students linked. linkUnlinkedStudentsForAccount should fix this on login."
+          : `Parent account exists with ${linkedStudents.length} linked student(s). If login fails, parent_accounts.password hash may be stale.`,
+    });
+  } catch (error) {
+    console.error("Debug Login Error:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

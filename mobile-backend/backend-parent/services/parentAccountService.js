@@ -90,6 +90,8 @@ function buildTeacherPayload(teacher) {
     };
 }
 
+const PARENT_TOKEN_EXPIRY = process.env.PARENT_TOKEN_EXPIRY || "90d";
+
 function issueParentToken(student, parentAccountId = null) {
     const payload = {
         id: Number(student.id),
@@ -100,8 +102,29 @@ function issueParentToken(student, parentAccountId = null) {
         payload.parent_account_id = Number(parentAccountId);
         payload.active_student_id = Number(student.id);
     }
-    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "30d" });
+    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: PARENT_TOKEN_EXPIRY });
 }
+
+/**
+ * Refresh a parent/student JWT token.
+ * Accepts an expired token (ignoresExpiration) and re-issues a fresh one
+ * only if the student record still exists in the DB.
+ * Returns null if the token is invalid for any reason other than expiry.
+ */
+async function refreshParentToken(oldToken) {
+    let decoded;
+    try {
+        decoded = jwt.verify(oldToken, process.env.JWT_SECRET, { ignoreExpiration: true });
+    } catch {
+        return null; // malformed / wrong secret
+    }
+    const studentId = decoded.active_student_id || decoded.id;
+    const student = await getStudentById(studentId);
+    if (!student) return null;
+    return issueParentToken(student, decoded.parent_account_id || null);
+}
+
+const TEACHER_TOKEN_EXPIRY = process.env.TEACHER_TOKEN_EXPIRY || "90d";
 
 function issueTeacherToken(teacher) {
     return jwt.sign(
@@ -111,7 +134,7 @@ function issueTeacherToken(teacher) {
             school_id: Number(teacher.school_id),
         },
         process.env.JWT_SECRET,
-        { expiresIn: "30d" },
+        { expiresIn: TEACHER_TOKEN_EXPIRY },
     );
 }
 
@@ -219,18 +242,28 @@ async function findLegacyMatchedStudentsByPhone(phone, password) {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) return [];
 
+    // Check both father_phone and mother_phone so either parent can log in
     const students = await sequelize.query(
         `
         SELECT *
         FROM student_forms
         WHERE ${phoneSqlExpr("father_phone")} = :phone
+           OR ${phoneSqlExpr("mother_phone")} = :phone
         ORDER BY id ASC
         `,
         { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
     );
 
+    // De-duplicate in case same student matches on both phone columns
+    const seen = new Set();
+    const unique = students.filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+    });
+
     const matched = [];
-    for (const student of students) {
+    for (const student of unique) {
         if (await passwordMatches(password, student.password)) {
             matched.push(student);
         }
@@ -335,9 +368,9 @@ async function linkUnlinkedStudentsForAccount(parentAccount) {
         { replacements, type: QueryTypes.INSERT }
     );
 
-    if (parentAccount.password) {
-        await syncParentPasswordToLinkedStudents(parentAccount.id, parentAccount.password);
-    }
+    // NOTE: Do NOT sync parent_accounts password to linked students here.
+    // Each student may have their own password set by the school admin.
+    // Password sync should ONLY happen on explicit password reset (verifyOtpAndResetPassword).
 }
 
 async function authenticateParent(phone, password) {
@@ -351,6 +384,7 @@ async function authenticateParent(phone, password) {
             normalizedPhone,
             password,
         );
+        console.log(`[Auth] No parent_accounts table. Legacy lookup for ${normalizedPhone}: ${legacyStudents.length} matches`);
         return { parentAccount: null, students: legacyStudents };
     }
 
@@ -365,21 +399,58 @@ async function authenticateParent(phone, password) {
 
     if (parentAccount) {
         let accountPasswordOk = await passwordMatches(password, parentAccount.password);
+        console.log(`[Auth] parent_accounts id=${parentAccount.id} found for ${normalizedPhone}, password match: ${accountPasswordOk}`);
 
         if (!accountPasswordOk) {
+            // Parent account password doesn't match.
+            // Try matching against individual student_forms passwords directly.
+            // This handles cases where:
+            //   - syncParentPasswordToLinkedStudents previously corrupted passwords
+            //   - student password was reset by admin independently
+            //   - parent_accounts hash is stale
+
+            // Strategy 1: phone-based lookup in student_forms
             const legacyCandidates = await findLegacyMatchedStudentsByPhone(normalizedPhone, password);
+            console.log(`[Auth] Legacy phone fallback for ${normalizedPhone}: ${legacyCandidates.length} matches`);
+
+            if (legacyCandidates.length === 0) {
+                // Strategy 2: check each linked student's own password
+                const linkedCandidates = await sequelize.query(
+                    `
+                    SELECT sf.*
+                    FROM parent_student_links psl
+                    JOIN student_forms sf ON sf.id = psl.student_form_id
+                    WHERE psl.parent_account_id = :parentAccountId
+                    ORDER BY sf.id ASC
+                    `,
+                    { replacements: { parentAccountId: parentAccount.id }, type: QueryTypes.SELECT },
+                );
+                console.log(`[Auth] Checking ${linkedCandidates.length} linked students for password match`);
+
+                for (const student of linkedCandidates) {
+                    if (await passwordMatches(password, student.password)) {
+                        legacyCandidates.push(student);
+                        console.log(`[Auth] Linked student id=${student.id} password matched`);
+                        break;
+                    }
+                }
+            }
+
             if (legacyCandidates.length > 0) {
+                // Update parent_accounts password to the correct one
                 const hashed = await hashPasswordIfNeeded(password);
                 await sequelize.query(
                     `UPDATE parent_accounts SET password = :password, updated_at = NOW() WHERE id = :id`,
-                    { replacements: { password: hashed, id: parentAccount.id }, type: QueryTypes.UPDATE }
+                    { replacements: { password: hashed, id: parentAccount.id }, type: QueryTypes.UPDATE },
                 );
                 parentAccount.password = hashed;
                 accountPasswordOk = true;
+                console.log(`[Auth] parent_accounts id=${parentAccount.id} password updated from fallback`);
             }
         }
 
         if (!accountPasswordOk) {
+            console.log(`[Auth] All password checks failed for ${normalizedPhone}`);
             return { parentAccount: null, students: [] };
         }
 
@@ -398,6 +469,7 @@ async function authenticateParent(phone, password) {
                 type: QueryTypes.SELECT,
             },
         );
+        console.log(`[Auth] Returning ${linkedStudents.length} linked students for parent_accounts id=${parentAccount.id}`);
 
         return { parentAccount, students: linkedStudents };
     }
@@ -571,6 +643,7 @@ async function syncParentPasswordToLinkedStudents(parentAccountId, hashedPasswor
 }
 
 module.exports = {
+    refreshParentToken,
     parentAccountsTableExists,
     normalizeEmail,
     normalizePhone,
