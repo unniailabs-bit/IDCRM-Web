@@ -11,14 +11,15 @@ const bcrypt = require("bcryptjs");
  * Body: { phone, new_password }
  */
 exports.resetStudentPassword = async (req, res) => {
+    let transaction;
     try {
         const schoolId = req.user?.school_id;
         if (!schoolId) {
             return res.status(401).json({ success: false, message: "Unauthorized" });
         }
 
-        const { phone, new_password } = req.body;
-        if (!phone || !new_password) {
+        const { phone, new_password } = req.body || {};
+        if (!phone || typeof new_password !== "string" || !new_password) {
             return res.status(400).json({
                 success: false,
                 message: "phone and new_password are required",
@@ -47,6 +48,7 @@ exports.resetStudentPassword = async (req, res) => {
 
         // Hash the new password
         const hashed = await bcrypt.hash(String(new_password), 10);
+        transaction = await sequelize.transaction();
 
         // 1. Find students in THIS school matching the phone
         const students = await sequelize.query(
@@ -57,12 +59,14 @@ exports.resetStudentPassword = async (req, res) => {
        LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
        WHERE sf.school_id = :schoolId
          AND (${phoneSql("sf.father_phone")} = :phone
-              OR ${phoneSql("sf.mother_phone")} = :phone)
+              OR ${phoneSql("sf.mother_phone")} = :phone
+              OR ${phoneSql("sf.parent_phone")} = :phone)
        ORDER BY sf.id ASC`,
-            { replacements: { schoolId, phone: normalizedPhone }, type: QueryTypes.SELECT }
+            { replacements: { schoolId, phone: normalizedPhone }, type: QueryTypes.SELECT, transaction }
         );
 
         if (students.length === 0) {
+            await transaction.rollback();
             return res.status(404).json({
                 success: false,
                 message: "No students found with this phone number in your school",
@@ -70,29 +74,34 @@ exports.resetStudentPassword = async (req, res) => {
         }
 
         // 2. Update student_forms passwords
-        const studentIds = students.map((s) => s.id);
         await sequelize.query(
-            `UPDATE student_forms SET password = :password WHERE id IN (:studentIds)`,
-            { replacements: { password: hashed, studentIds }, type: QueryTypes.UPDATE }
+            `UPDATE student_forms
+       SET password = :password
+       WHERE school_id = :schoolId
+         AND (${phoneSql("father_phone")} = :phone
+              OR ${phoneSql("mother_phone")} = :phone
+              OR ${phoneSql("parent_phone")} = :phone)`,
+            { replacements: { password: hashed, schoolId, phone: normalizedPhone }, type: QueryTypes.UPDATE, transaction }
         );
 
         // 3. Update parent_accounts if the table exists
         let parentAccountUpdated = false;
-        try {
-            const [tableCheck] = await sequelize.query(
-                `SELECT to_regclass('public.parent_accounts') AS table_name`,
-                { type: QueryTypes.SELECT }
-            );
+        const [tableCheck] = await sequelize.query(
+            `SELECT to_regclass('public.parent_accounts') AS parent_accounts,
+                    to_regclass('public.parent_student_links') AS parent_student_links`,
+            { type: QueryTypes.SELECT, transaction }
+        );
 
-            if (tableCheck?.table_name) {
-                // Update parent_accounts password
-                await sequelize.query(
-                    `UPDATE parent_accounts SET password = :password, updated_at = NOW()
+        if (tableCheck?.parent_accounts) {
+            // Update parent_accounts password
+            await sequelize.query(
+                `UPDATE parent_accounts SET password = :password, updated_at = NOW()
            WHERE ${phoneSql("phone")} = :phone`,
-                    { replacements: { password: hashed, phone: normalizedPhone }, type: QueryTypes.UPDATE }
-                );
-                parentAccountUpdated = true;
+                { replacements: { password: hashed, phone: normalizedPhone }, type: QueryTypes.UPDATE, transaction }
+            );
+            parentAccountUpdated = true;
 
+            if (tableCheck.parent_student_links) {
                 // Also update any linked students (in case they belong to other schools via same parent)
                 await sequelize.query(
                     `UPDATE student_forms sf
@@ -102,12 +111,12 @@ exports.resetStudentPassword = async (req, res) => {
            WHERE psl.student_form_id = sf.id
              AND ${phoneSql("pa.phone")} = :phone
              AND sf.school_id = :schoolId`,
-                    { replacements: { password: hashed, phone: normalizedPhone, schoolId }, type: QueryTypes.UPDATE }
+                    { replacements: { password: hashed, phone: normalizedPhone, schoolId }, type: QueryTypes.UPDATE, transaction }
                 );
             }
-        } catch (err) {
-            console.warn("parent_accounts update skipped:", err.message);
         }
+
+        await transaction.commit();
 
         console.log(
             `[PasswordReset] School ${schoolId} reset password for phone ${normalizedPhone}: ${students.length} student(s), parent_account: ${parentAccountUpdated}`
@@ -125,6 +134,9 @@ exports.resetStudentPassword = async (req, res) => {
             })),
         });
     } catch (error) {
+        if (transaction && !transaction.finished) {
+            await transaction.rollback();
+        }
         console.error("Reset Student Password Error:", error);
         return res.status(500).json({ success: false, message: "Server error" });
     }
@@ -167,7 +179,8 @@ exports.searchStudentsByPhone = async (req, res) => {
        LEFT JOIN classes c ON COALESCE(d.class_id, sf.class_id) = c.id
        WHERE sf.school_id = :schoolId
          AND (${phoneSql("sf.father_phone")} = :phone
-              OR ${phoneSql("sf.mother_phone")} = :phone)
+              OR ${phoneSql("sf.mother_phone")} = :phone
+              OR ${phoneSql("sf.parent_phone")} = :phone)
        ORDER BY sf.first_name ASC, sf.last_name ASC`,
             { replacements: { schoolId, phone: normalizedPhone }, type: QueryTypes.SELECT }
         );
