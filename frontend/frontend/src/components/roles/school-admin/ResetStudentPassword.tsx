@@ -321,36 +321,36 @@ export function ResetStudentPassword() {
 
             {/* Confirm Dialog */}
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
+                <DialogContent className="w-[calc(100%-2rem)] gap-5 p-6 sm:w-100 sm:max-w-none">
+                    <DialogHeader className="gap-1.5">
+                        <DialogTitle className="flex items-center gap-2 text-lg">
                             <AlertTriangle className="w-5 h-5 text-amber-500" />
                             Confirm Password Reset
                         </DialogTitle>
-                        <DialogDescription className="text-sm text-gray-600 mt-2">
+                        <DialogDescription className="text-sm leading-relaxed text-gray-600">
                             This will immediately reset the app login password for{' '}
                             <strong>{searchResults.length} student{searchResults.length !== 1 ? 's' : ''}</strong>{' '}
                             linked to <strong>{phone}</strong>. Parents will need to use the new password to login.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="bg-gray-50 rounded-xl p-3 my-2">
+                    <div className="max-h-40 overflow-y-auto rounded-lg bg-gray-50 p-3">
                         {searchResults.map((s) => (
-                            <p key={s.id} className="text-sm text-gray-700 py-0.5">
-                                • {s.name} ({s.class_name} {s.division_name})
+                            <p key={s.id} className="py-1 text-sm text-gray-700">
+                                {s.name} ({s.class_name} {s.division_name})
                             </p>
                         ))}
                     </div>
-                    <div className="flex gap-3 mt-2">
+                    <div className="flex gap-2">
                         <Button
                             variant="outline"
-                            className="flex-1 rounded-xl"
+                            className="h-10 flex-1 rounded-lg"
                             onClick={() => setConfirmOpen(false)}
                         >
                             Cancel
                         </Button>
                         <Button
                             id="confirm-reset-btn"
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                            className="h-10 flex-1 rounded-lg bg-red-600 text-white hover:bg-red-700"
                             onClick={handleReset}
                         >
                             Yes, Reset Password
