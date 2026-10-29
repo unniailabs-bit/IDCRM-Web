@@ -288,16 +288,19 @@ async function ensureParentAccountForPhone(phone, password, sampleStudent) {
 
     if (existing) return existing;
 
+    const email = normalizeEmail(sampleStudent?.father_email);
+    if (!email) return null;
+
     const hashed = await hashPasswordIfNeeded(password);
-    const email =
-        sampleStudent?.father_email
-            ? normalizeEmail(sampleStudent.father_email)
-            : null;
 
     const [inserted] = await sequelize.query(
         `
         INSERT INTO parent_accounts (email, password, name, phone, created_at, updated_at)
         VALUES (:email, :password, :name, :phone, NOW(), NOW())
+        ON CONFLICT (LOWER(email)) DO UPDATE
+        SET phone = COALESCE(NULLIF(BTRIM(parent_accounts.phone), ''), EXCLUDED.phone),
+            name = COALESCE(parent_accounts.name, EXCLUDED.name),
+            updated_at = NOW()
         RETURNING *
         `,
         {
@@ -497,6 +500,7 @@ async function authenticateParent(phone, password) {
             );
             account.password = hashed;
         }
+        await ensureLinksForStudents(account.id, legacyStudents);
         await linkUnlinkedStudentsForAccount(account);
 
         const linkedStudents = await sequelize.query(
