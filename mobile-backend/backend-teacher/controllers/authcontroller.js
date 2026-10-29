@@ -351,7 +351,7 @@ exports.requestPasswordReset = async (req, res) => {
         }
 
         const otpEmail = legacyStudents[0].father_email;
-        if (!otpEmail) {
+        if (!otpEmail || otpEmail.endsWith("@internal.app")) {
           return res.status(400).json({
             success: false,
             message: "No email on file for OTP. Please contact school admin.",
@@ -388,7 +388,7 @@ exports.requestPasswordReset = async (req, res) => {
       }
 
       const otpEmail = parentAccount.email;
-      if (!otpEmail) {
+      if (!otpEmail || otpEmail.endsWith("@internal.app")) {
         return res.status(400).json({
           success: false,
           message: "No email on file for OTP. Please contact school admin.",

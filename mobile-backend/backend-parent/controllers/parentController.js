@@ -14,6 +14,7 @@ const {
   getStudentById,
   studentLinkedToParent,
   normalizePhone,
+  normalizeEmail,
   hashPasswordIfNeeded,
   syncParentPasswordToLinkedStudents,
   parentAccountsTableExists,
@@ -146,6 +147,21 @@ exports.updateParentProfile = async (req, res) => {
     if (father_email) {
       updates.push("father_email = :father_email");
       replacements.father_email = father_email;
+
+      if (parentAccountId && (await parentAccountsTableExists())) {
+        const normEmail = normalizeEmail(father_email);
+        if (normEmail) {
+          try {
+            await sequelize.query(
+              `UPDATE parent_accounts SET email = :email, updated_at = NOW() WHERE id = :id`,
+              {
+                replacements: { email: normEmail, id: parentAccountId },
+                type: QueryTypes.UPDATE,
+              },
+            );
+          } catch (_) {}
+        }
+      }
     }
     if (password) {
       const hashed = await hashPasswordIfNeeded(password);
@@ -189,7 +205,18 @@ exports.updateParentProfile = async (req, res) => {
 
 exports.getLinkedStudents = async (req, res) => {
   try {
-    const parentAccountId = req.parentAccountId;
+    let parentAccountId = req.parentAccountId;
+    if (!parentAccountId && req.parent?.id && (await parentAccountsTableExists())) {
+      const [link] = await sequelize.query(
+        `SELECT parent_account_id FROM parent_student_links WHERE student_form_id = :studentId LIMIT 1`,
+        { replacements: { studentId: req.parent.id }, type: QueryTypes.SELECT },
+      );
+      if (link?.parent_account_id) {
+        parentAccountId = link.parent_account_id;
+        req.parentAccountId = parentAccountId;
+      }
+    }
+
     if (!parentAccountId) {
       return res.json({
         success: true,
@@ -211,7 +238,7 @@ exports.getLinkedStudents = async (req, res) => {
 
 exports.switchStudent = async (req, res) => {
   try {
-    const parentAccountId = req.parentAccountId;
+    let parentAccountId = req.parentAccountId;
     const { student_id } = req.body;
     const studentId = Number(student_id);
 
@@ -220,6 +247,17 @@ exports.switchStudent = async (req, res) => {
         success: false,
         message: "student_id is required",
       });
+    }
+
+    if (!parentAccountId && req.parent?.id && (await parentAccountsTableExists())) {
+      const [link] = await sequelize.query(
+        `SELECT parent_account_id FROM parent_student_links WHERE student_form_id = :studentId LIMIT 1`,
+        { replacements: { studentId: req.parent.id }, type: QueryTypes.SELECT },
+      );
+      if (link?.parent_account_id) {
+        parentAccountId = link.parent_account_id;
+        req.parentAccountId = parentAccountId;
+      }
     }
 
     if (parentAccountId) {
@@ -455,9 +493,16 @@ exports.adminResetPassword = async (req, res) => {
   try {
     const { phone, new_password, admin_key } = req.body;
 
-    // Simple admin key protection — set ADMIN_SECRET in your .env
-    const adminSecret = process.env.ADMIN_SECRET || "shikshalay_admin_2026";
-    if (admin_key !== adminSecret) {
+    const adminSecret = process.env.ADMIN_SECRET;
+    if (!adminSecret || !adminSecret.trim()) {
+      return res.status(503).json({
+        success: false,
+        message: "Admin secret is not configured on the server",
+      });
+    }
+
+    const providedKey = req.headers["x-admin-key"] || admin_key;
+    if (!providedKey || providedKey !== adminSecret) {
       return res.status(403).json({ success: false, message: "Invalid admin key" });
     }
 

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const parentController = require("../controllers/parentController");
 const parentAuth = require("../middleware/parentAuth");
+const adminAuth = require("../middleware/adminAuth");
 
 // POST /api/parent/login
 router.post("/login", parentController.parentLogin);
@@ -17,10 +18,10 @@ router.get("/dashboard", parentAuth, parentController.getParentDashboard);
 // Update parent profile
 router.patch("/profile", parentAuth, parentController.updateParentProfile);
 
-// Diagnostic: check login state for a phone number (no auth needed, returns no passwords)
-router.get("/debug-login", parentController.debugLogin);
+// Diagnostic: check login state for a phone number (requires ADMIN_SECRET)
+router.get("/debug-login", adminAuth, parentController.debugLogin);
 
-// Admin: force-reset password for a phone number
-router.post("/admin-reset-password", parentController.adminResetPassword);
+// Admin: force-reset password for a phone number (requires ADMIN_SECRET)
+router.post("/admin-reset-password", adminAuth, parentController.adminResetPassword);
 
 module.exports = router;

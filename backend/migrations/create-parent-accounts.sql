@@ -1,7 +1,7 @@
 -- Parent account identity (one login per guardian email)
 CREATE TABLE IF NOT EXISTS parent_accounts (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
     password VARCHAR(255),
     name VARCHAR(255),
     phone VARCHAR(50),

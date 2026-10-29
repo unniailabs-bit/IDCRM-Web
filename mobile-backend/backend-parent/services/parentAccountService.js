@@ -121,7 +121,18 @@ async function refreshParentToken(oldToken) {
     const studentId = decoded.active_student_id || decoded.id;
     const student = await getStudentById(studentId);
     if (!student) return null;
-    return issueParentToken(student, decoded.parent_account_id || null);
+
+    let parentAccountId = decoded.parent_account_id || null;
+    if (!parentAccountId && (await parentAccountsTableExists())) {
+        const [link] = await sequelize.query(
+            `SELECT parent_account_id FROM parent_student_links WHERE student_form_id = :studentId LIMIT 1`,
+            { replacements: { studentId }, type: QueryTypes.SELECT }
+        );
+        if (link?.parent_account_id) {
+            parentAccountId = link.parent_account_id;
+        }
+    }
+    return issueParentToken(student, parentAccountId);
 }
 
 const TEACHER_TOKEN_EXPIRY = process.env.TEACHER_TOKEN_EXPIRY || "90d";
@@ -286,10 +297,23 @@ async function ensureParentAccountForPhone(phone, password, sampleStudent) {
         { replacements: { phone: normalizedPhone }, type: QueryTypes.SELECT },
     );
 
-    if (existing) return existing;
+    if (existing) {
+        const realEmail = normalizeEmail(sampleStudent?.father_email);
+        if (realEmail && existing.email && existing.email.endsWith("@internal.app")) {
+            try {
+                await sequelize.query(
+                    `UPDATE parent_accounts SET email = :email, updated_at = NOW() WHERE id = :id`,
+                    { replacements: { email: realEmail, id: existing.id }, type: QueryTypes.UPDATE }
+                );
+                existing.email = realEmail;
+            } catch (_) {}
+        }
+        return existing;
+    }
 
-    const email = normalizeEmail(sampleStudent?.father_email);
-    if (!email) return null;
+    const email =
+        normalizeEmail(sampleStudent?.father_email) ||
+        `phone_${normalizedPhone}@internal.app`;
 
     const hashed = await hashPasswordIfNeeded(password);
 
@@ -307,7 +331,7 @@ async function ensureParentAccountForPhone(phone, password, sampleStudent) {
             replacements: {
                 email,
                 password: hashed,
-                name: sampleStudent?.father_name || null,
+                name: sampleStudent?.father_name || sampleStudent?.mother_name || null,
                 phone: normalizedPhone,
             },
             type: QueryTypes.INSERT,
@@ -352,7 +376,7 @@ async function linkUnlinkedStudentsForAccount(parentAccount) {
         whereClause.push(`${phoneSqlExpr("sf.mother_phone")} = :phone`);
         replacements.phone = normalizedPhone;
     }
-    if (email) {
+    if (email && !email.endsWith("@internal.app")) {
         whereClause.push(`(sf.father_email IS NOT NULL AND LOWER(sf.father_email) = :email)`);
         replacements.email = email;
     }
@@ -474,6 +498,19 @@ async function authenticateParent(phone, password) {
         );
         console.log(`[Auth] Returning ${linkedStudents.length} linked students for parent_accounts id=${parentAccount.id}`);
 
+        if (parentAccount.email && parentAccount.email.endsWith("@internal.app")) {
+            const realEmail = normalizeEmail(linkedStudents.find((s) => normalizeEmail(s.father_email))?.father_email);
+            if (realEmail) {
+                try {
+                    await sequelize.query(
+                        `UPDATE parent_accounts SET email = :email, updated_at = NOW() WHERE id = :id`,
+                        { replacements: { email: realEmail, id: parentAccount.id }, type: QueryTypes.UPDATE }
+                    );
+                    parentAccount.email = realEmail;
+                } catch (_) {}
+            }
+        }
+
         return { parentAccount, students: linkedStudents };
     }
 
@@ -485,10 +522,14 @@ async function authenticateParent(phone, password) {
         return { parentAccount: null, students: [] };
     }
 
+    const sampleStudent =
+        legacyStudents.find((s) => normalizeEmail(s.father_email)) ||
+        legacyStudents[0];
+
     const account = await ensureParentAccountForPhone(
         normalizedPhone,
         password,
-        legacyStudents[0],
+        sampleStudent,
     );
 
     if (account) {
