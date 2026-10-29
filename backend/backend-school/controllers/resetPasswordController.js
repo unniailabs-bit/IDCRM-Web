@@ -26,6 +26,7 @@ exports.resetStudentPassword = async (req, res) => {
             });
         }
 
+        
         if (new_password.length < 4) {
             return res.status(400).json({
                 success: false,
