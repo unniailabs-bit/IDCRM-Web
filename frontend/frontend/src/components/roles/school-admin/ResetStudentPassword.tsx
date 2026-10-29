@@ -32,7 +32,7 @@ interface StudentPreview {
     roll_number: string;
     class_name: string;
     division_name: string;
-    password_status: 'encrypted' | 'plain' | 'not_set';
+    // password_status: 'encrypted' | 'plain' | 'not_set';
 }
 
 interface ResetResult {
@@ -213,7 +213,7 @@ export function ResetStudentPassword() {
                                                     Roll: {s.roll_number || '—'} · {s.class_name || '—'} {s.division_name || ''}
                                                 </p>
                                             </div>
-                                            {passwordStatusBadge(s.password_status)}
+{/* {passwordStatusBadge(s.password_status)} */}
                                         </div>
                                     ))}
                                 </div>
@@ -243,7 +243,7 @@ export function ResetStudentPassword() {
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     className="pl-10 pr-10 rounded-xl"
                                 />
-                                <button
+                                <button                                            
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
