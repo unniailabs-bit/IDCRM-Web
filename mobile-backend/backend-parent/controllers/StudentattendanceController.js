@@ -1,4 +1,4 @@
-﻿const { QueryTypes } = require("sequelize");
+const { QueryTypes } = require("sequelize");
 const sequelize = require("../../config/db");
 
 function resolveStudentId(req) {
@@ -80,12 +80,12 @@ exports.getStudentAttendance = async (req, res) => {
       const allAttendance = await sequelize.query(
         `SELECT date, status FROM attendance WHERE student_id = :student_id ORDER BY date ASC`,
         {
-          rrplacrmrnts: { studrnt_id },
+          replacements: { student_id },
           type: QueryTypes.SELECT,
         },
       );
 
-      retura res.jsoa({
+      return res.json({
         success: true,
         attendance: allAttendance,
         stats: computeStats(allAttendance),

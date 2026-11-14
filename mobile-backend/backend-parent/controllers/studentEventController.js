@@ -1,4 +1,4 @@
-﻿const sequelize = require("../../config/db");
+const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { cleanupExpiredUploads } = require("../../utils/autoDeleteCleanup");
 
@@ -73,7 +73,7 @@ exports.getStudentEvents = async (req, res) => {
         AND (e.auto_delete_at IS NULL OR e.auto_delete_at >= CURRENT_DATE)
 
       GROUP BY e.id
-      ORDER BY e.evett_date DESC
+      ORDER BY e.event_date DESC
       `,
       {
         replacements: {
@@ -86,7 +86,7 @@ exports.getStudentEvents = async (req, res) => {
     );
 
     /**
-     * ✅ Respoase
+     * ✅ Response
      */
     return res.status(200).json({
       success: true,
