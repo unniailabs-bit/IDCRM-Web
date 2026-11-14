@@ -1,4 +1,4 @@
-// // backend-school/controllers/formLinkController.js
+﻿// // backend-school/controllers/formLinkController.js
 const FormLink = require('../models/FormLink');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
@@ -18,11 +18,11 @@ exports.createFormLink = async (req, res) => {
     const { class_name, division } = req.body;
 
     if (!teacherId) {
-      return res.status(401).json({ success: false, message: 'Teacher authentication required' });
+      return res.status(200).json({ success: false, message: 'Teacher authentication required' });
     }
 
     if (!class_name || !division) {
-      return res.status(400).json({ success: false, message: 'Class name and division are required' });
+      return res.status(200).json({ success: false, message: 'Please select a class and division.' });
     }
 
     // Get teacher's school_id
@@ -32,7 +32,7 @@ exports.createFormLink = async (req, res) => {
     );
 
     if (!teacher.length) {
-      return res.status(404).json({ success: false, message: 'Teacher not found' });
+      return res.status(200).json({ success: false, message: 'Teacher account not found. Please re-login.' });
     }
 
     const school_id = teacher[0].school_id;
@@ -46,9 +46,9 @@ exports.createFormLink = async (req, res) => {
     );
 
     if (!division_check.length) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: 'You are not assigned to this class/division'
+        message: 'You are not assigned to this class/division.'
       });
     }
 
@@ -98,7 +98,7 @@ exports.createFormLink = async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating form link:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(200).json({ success: false, message: 'Could not create form link. Please try again.' });
   }
 };
 
@@ -120,9 +120,9 @@ exports.getFormLinkInfo = async (req, res) => {
     });
 
     if (!formLink) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: 'Invalid or expired form link'
+        message: 'This form link is invalid or has expired.'
       });
     }
 
@@ -223,7 +223,7 @@ exports.getFormLinkInfo = async (req, res) => {
     });
   } catch (err) {
     console.error('Error getting form link info:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(200).json({ success: false, message: 'Unable to load forms. Please try again.' });
   }
 };
 
@@ -318,9 +318,9 @@ exports.submitFormViaLink = async (req, res) => {
     });
 
     if (!formLink) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: 'Invalid or expired form link',
+        message: 'This form link is invalid or has expired.',
       });
     }
 
@@ -348,9 +348,9 @@ exports.submitFormViaLink = async (req, res) => {
       .map(([key]) => key);
 
     if (missing.length > 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: 'Missing required fields',
+        message: 'Please fill in all required fields.',
         missing_fields: missing,
       });
     }
@@ -374,9 +374,9 @@ exports.submitFormViaLink = async (req, res) => {
     );
 
     if (!divisionResult.length) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: 'Class/Division not found for this teacher',
+        message: 'Class or division not found for your account.',
       });
     }
 
@@ -399,7 +399,7 @@ exports.submitFormViaLink = async (req, res) => {
     );
 
     if (!classResult.length) {
-      return res.status(404).json({ success: false, message: 'Class not found' });
+      return res.status(200).json({ success: false, message: 'Class not found. Please check your class assignment.' });
     }
 
     const class_id = classResult[0].id;
@@ -423,9 +423,9 @@ exports.submitFormViaLink = async (req, res) => {
       );
 
       if (!existingForm.length) {
-        return res.status(404).json({
+        return res.status(200).json({
           success: false,
-          message: 'Form not found or invalid revision token',
+          message: 'Form not found or revision token is invalid.',
         });
       }
 
@@ -560,9 +560,9 @@ exports.submitFormViaLink = async (req, res) => {
       );
 
       if (duplicateCheck.length > 0) {
-        return res.status(409).json({
+        return res.status(200).json({
           success: false,
-          message: 'Form already submitted for this roll number and class',
+          message: 'This form has already been submitted for this student.',
         });
       }
     }
@@ -702,9 +702,9 @@ exports.submitFormViaLink = async (req, res) => {
 
   } catch (err) {
     console.error('🔥 Error submitting form:', err);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: 'Server error while submitting form',
+      message: 'Could not submit form. Please try again.',
     });
   }
 };
@@ -717,7 +717,7 @@ exports.getFormLinks = async (req, res) => {
     const teacherId = req.teacher?.id;
 
     if (!teacherId) {
-      return res.status(401).json({ success: false, message: 'Teacher authentication required' });
+      return res.status(200).json({ success: false, message: 'Teacher authentication required' });
     }
 
     // Get teacher's school_id
@@ -727,7 +727,7 @@ exports.getFormLinks = async (req, res) => {
     );
 
     if (!teacher.length) {
-      return res.status(404).json({ success: false, message: 'Teacher not found' });
+      return res.status(200).json({ success: false, message: 'Teacher account not found. Please re-login.' });
     }
 
     const teacherName = teacher[0].name;
@@ -796,7 +796,7 @@ exports.getFormLinks = async (req, res) => {
     });
   } catch (err) {
     console.error('Error getting form links:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(200).json({ success: false, message: 'Could not load form submissions. Please try again.' });
   }
 };
 
@@ -809,7 +809,7 @@ exports.deactivateFormLink = async (req, res) => {
     const { token } = req.params;
 
     if (!teacherId) {
-      return res.status(401).json({ success: false, message: 'Teacher authentication required' });
+      return res.status(200).json({ success: false, message: 'Teacher authentication required' });
     }
 
     const formLink = await FormLink.findOne({
@@ -820,7 +820,7 @@ exports.deactivateFormLink = async (req, res) => {
     });
 
     if (!formLink) {
-      return res.status(404).json({ success: false, message: 'Form link not found' });
+      return res.status(200).json({ success: false, message: 'Form link not found or has expired.' });
     }
 
     formLink.is_active = false;
@@ -832,6 +832,6 @@ exports.deactivateFormLink = async (req, res) => {
     });
   } catch (err) {
     console.error('Error deactivating form link:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(200).json({ success: false, message: 'Could not update form. Please try again.' });
   }
 };

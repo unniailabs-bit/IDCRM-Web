@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToClass } = require("../../utils/pushNotification");
 
@@ -9,11 +9,11 @@ exports.createSchoolTimetable = async (req, res) => {
         const { title, class_id, division_id } = req.body;
 
         if (!req.file) {
-            return res.status(400).json({ success: false, message: "Timetable file is required" });
+            return res.status(200).json({ success: false, message: "Timetable file is required" });
         }
 
         if (!title || !class_id || !division_id) {
-            return res.status(400).json({ success: false, message: "title, class_id, and division_id are required" });
+            return res.status(200).json({ success: false, message: "title, class_id, and division_id are required" });
         }
 
         const [assignedDivision] = await sequelize.query(
@@ -36,7 +36,7 @@ exports.createSchoolTimetable = async (req, res) => {
         );
 
         if (!assignedDivision) {
-            return res.status(403).json({
+            return res.status(200).json({
                 success: false,
                 message: "You can only upload timetables for your assigned class and division"
             });
@@ -83,7 +83,7 @@ exports.createSchoolTimetable = async (req, res) => {
 
     } catch (error) {
         console.error("Create School Timetable Error:", error);
-        res.status(500).json({ success: false, message: "Server error", error: error.message });
+        res.status(200).json({ success: false, message: "Unable to load school timetable. Please try again.", error: error.message });
     }
 };
 
@@ -111,7 +111,7 @@ exports.getSchoolTimetables = async (req, res) => {
 
     } catch (error) {
         console.error("Get School Timetables Error:", error);
-        res.status(500).json({ success: false, message: "Server error", error: error.message });
+        res.status(200).json({ success: false, message: "Could not save school timetable. Please try again.", error: error.message });
     }
 };
 
@@ -141,7 +141,7 @@ exports.updateSchoolTimetable = async (req, res) => {
         );
 
         if (!existingTimetable) {
-            return res.status(404).json({ success: false, message: "Timetable not found" });
+            return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
         }
 
         const targetClassId = class_id || existingTimetable.class_id;
@@ -166,7 +166,7 @@ exports.updateSchoolTimetable = async (req, res) => {
         );
 
         if (!assignedDivision) {
-            return res.status(403).json({
+            return res.status(200).json({
                 success: false,
                 message: "You can only update timetables for your assigned class and division"
             });
@@ -205,7 +205,7 @@ exports.updateSchoolTimetable = async (req, res) => {
         );
 
         if (result.length === 0) {
-            return res.status(404).json({ success: false, message: "Timetable not found" });
+            return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
         }
 
         res.json({
@@ -216,7 +216,7 @@ exports.updateSchoolTimetable = async (req, res) => {
 
     } catch (error) {
         console.error("Update School Timetable Error:", error);
-        res.status(500).json({ success: false, message: "Server error", error: error.message });
+        res.status(200).json({ success: false, message: "Could not update school timetable. Please try again.", error: error.message });
     }
 };
 
@@ -242,7 +242,7 @@ exports.deleteSchoolTimetable = async (req, res) => {
         );
 
         if (result.length === 0) {
-            return res.status(404).json({ success: false, message: "Timetable not found" });
+            return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
         }
 
         res.json({
@@ -252,6 +252,6 @@ exports.deleteSchoolTimetable = async (req, res) => {
 
     } catch (error) {
         console.error("Delete School Timetable Error:", error);
-        res.status(500).json({ success: false, message: "Server error", error: error.message });
+        res.status(200).json({ success: false, message: "Could not delete school timetable. Please try again.", error: error.message });
     }
 };

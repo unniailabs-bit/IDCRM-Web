@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 
@@ -74,9 +74,9 @@ exports.getTeachersForStudent = async (req, res) => {
 
   } catch (error) {
     console.error("Get Teachers Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load teachers. Please try again."
     });
   }
 };
@@ -95,7 +95,7 @@ exports.getChatHistory = async (req, res) => {
     }
 
     if (!teacher_id) {
-      return res.status(400).json({ success: false, message: "teacher_id is required" });
+      return res.status(200).json({ success: false, message: "Please select a teacher to view the chat." });
     }
 
     // Mark unread messages from this teacher as read
@@ -150,7 +150,7 @@ exports.getChatHistory = async (req, res) => {
 
   } catch (error) {
     console.error("Get Chat History Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load chat history. Please try again." });
   }
 };
 
@@ -182,7 +182,7 @@ exports.getReceivedMessages = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Received Messages Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load received messages. Please try again." });
   }
 };
 
@@ -202,9 +202,9 @@ exports.sendMessageToTeacher = async (req, res) => {
     }
 
     if (!teacher_id || !message) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "teacher_id and message are required"
+        message: "Please select a teacher and type a message."
       });
     }
 
@@ -214,9 +214,9 @@ exports.sendMessageToTeacher = async (req, res) => {
     );
 
     if (!teacher) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: "Teacher not found"
+        message: "Teacher not found. They may have been removed."
       });
     }
 
@@ -226,9 +226,9 @@ exports.sendMessageToTeacher = async (req, res) => {
     );
 
     if (studentStatus && studentStatus.messaging_enabled === false) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: "Your messaging feature has been disabled by the teacher"
+        message: "Messaging has been disabled by your teacher."
       });
     }
 
@@ -293,9 +293,9 @@ exports.sendMessageToTeacher = async (req, res) => {
 
   } catch (error) {
     console.error("Send Message Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Could not send message. Please try again."
     });
   }
 };

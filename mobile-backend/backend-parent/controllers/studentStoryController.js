@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { cleanupExpiredUploads } = require("../../utils/autoDeleteCleanup");
 
@@ -61,6 +61,6 @@ exports.getStudentStories = async (req, res) => {
 
     } catch (error) {
         console.error("Get Student Stories Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Server error" });
     }
 };

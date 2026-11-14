@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 
 // --------------------
 // Allowed Material Types
@@ -25,9 +25,9 @@ exports.getStudentMaterials = async (req, res) => {
 
     // Validate material_type if provided
     if (material_type && !MATERIAL_TYPES.includes(material_type)) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid material type"
+        message: "Invalid material type selected."
       });
     }
 
@@ -81,9 +81,9 @@ exports.getStudentMaterials = async (req, res) => {
 
   } catch (error) {
     console.error("Get Student Materials Error:", error);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load materials. Please try again."
     });
   }
 };
@@ -123,7 +123,7 @@ exports.getStudentSubjects = async (req, res) => {
 
   } catch (error) {
     console.error("Get Student Subjects Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load material details. Please try again." });
   }
 };
 

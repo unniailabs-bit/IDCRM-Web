@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToClass } = require("../../utils/pushNotification");
 const multer = require("multer");
@@ -72,7 +72,7 @@ exports.getTeacherMcqs = async (req, res) => {
     const { class_id, division_id, subject_id } = req.query;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({
+      return res.status(200).json({
         success: false,
         message: "Unauthorized"
       });
@@ -152,7 +152,7 @@ exports.getTeacherMcqs = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Teacher MCQs Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: error.message || "Failed to fetch MCQs"
     });
@@ -168,7 +168,7 @@ exports.updateMcq = async (req, res) => {
     const { id, question, option_a, option_b, option_c, option_d, correct_answer, subject_id } = req.body;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     const [result] = await sequelize.query(
@@ -190,14 +190,14 @@ exports.updateMcq = async (req, res) => {
     );
 
     if (!result || result.length === 0) {
-      return res.status(404).json({ success: false, message: "MCQ not found" });
+      return res.status(200).json({ success: false, message: "MCQ not found. It may have been deleted." });
     }
 
     return res.json({ success: true, message: "MCQ updated successfully" });
 
   } catch (error) {
     console.error("Update MCQ Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not update MCQ. Please try again." });
   }
 };
 
@@ -210,7 +210,7 @@ exports.deleteMcq = async (req, res) => {
     const { id } = req.params;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     const [mcq] = await sequelize.query(
@@ -219,7 +219,7 @@ exports.deleteMcq = async (req, res) => {
     );
 
     if (!mcq) {
-      return res.status(404).json({ success: false, message: "MCQ not found" });
+      return res.status(200).json({ success: false, message: "MCQ not found. It may have been deleted." });
     }
 
     await sequelize.query(
@@ -235,7 +235,7 @@ exports.deleteMcq = async (req, res) => {
 
   } catch (error) {
     console.error("Delete MCQ Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not delete MCQ. Please try again." });
   }
 };
 
@@ -248,7 +248,7 @@ exports.deleteMcqGroupByTitle = async (req, res) => {
     const { title, subject_id, class_id, division_id } = req.body;
 
     if (!title || !class_id || !division_id) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "title, class_id, and division_id are required"
       });
@@ -296,7 +296,7 @@ exports.deleteMcqGroupByTitle = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete MCQ Group Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: error.message || "Failed to delete MCQ group"
     });
@@ -313,7 +313,7 @@ exports.deleteTeacherMcqs = async (req, res) => {
     const finalIds = mcq_ids || mcqIds;
 
     if (!finalIds || !Array.isArray(finalIds) || finalIds.length === 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "No MCQ IDs provided for deletion"
       });
@@ -343,7 +343,7 @@ exports.deleteTeacherMcqs = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete Teacher MCQs Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: error.message || "Failed to delete MCQs"
     });
@@ -377,7 +377,7 @@ exports.addMcqQuestions = async (req, res) => {
 
     if (!excelFile) {
       await transaction.rollback();
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "Excel file is required"
       });
@@ -419,7 +419,7 @@ exports.addMcqQuestions = async (req, res) => {
 
       if (!existingMaterial) {
         await transaction.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "Invalid material_id for this teacher / class / division"
         });
@@ -433,7 +433,7 @@ exports.addMcqQuestions = async (req, res) => {
       // Basic validation
       if (!class_id || !division_id) {
         await transaction.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "class_id and division_id are required when creating material"
         });
@@ -442,7 +442,7 @@ exports.addMcqQuestions = async (req, res) => {
       // At least one material file should be present when creating a material with files
       if (!materialFiles || materialFiles.length === 0) {
         await transaction.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "At least one material file is required when creating material with MCQs"
         });
@@ -472,7 +472,7 @@ exports.addMcqQuestions = async (req, res) => {
       const ALLOWED_MATERIAL_TYPES = ["textbooks", "notes", "question_papers", "videos"];
       if (!ALLOWED_MATERIAL_TYPES.includes(finalMaterialType)) {
         await transaction.rollback();
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "Invalid material_type"
         });
@@ -534,7 +534,7 @@ exports.addMcqQuestions = async (req, res) => {
 
     if (mcqs.length === 0) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: "No MCQs found in Excel" });
+      return res.status(200).json({ success: false, message: "No MCQs found for this topic. in Excel" });
     }
 
     // Validate ZIP for duplicate question numbers before inserting MCQs
@@ -579,7 +579,7 @@ exports.addMcqQuestions = async (req, res) => {
           if (fs.existsSync(zipFileEarly.path)) {
             fs.unlinkSync(zipFileEarly.path);
           }
-          return res.status(400).json({
+          return res.status(200).json({
             success: false,
             message: `Duplicate question number(s) already exist in ZIP: ${duplicateNumbers.join(", ")}. Each question number must have only one image.`,
             duplicate_question_numbers: duplicateNumbers
@@ -594,7 +594,7 @@ exports.addMcqQuestions = async (req, res) => {
         if (zipFileEarly && fs.existsSync(zipFileEarly.path)) {
           fs.unlinkSync(zipFileEarly.path);
         }
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: "Invalid ZIP file. Please upload a valid images ZIP."
         });
@@ -791,7 +791,7 @@ exports.addMcqQuestions = async (req, res) => {
       fs.unlinkSync(excelFile.path);
     }
 
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: error.message || "Failed to add MCQs"
     });
@@ -808,7 +808,7 @@ exports.getTeacherMaterialsForMcq = async (req, res) => {
     const { class_id, division_id } = req.query;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({
+      return res.status(200).json({
         success: false,
         message: "Unauthorized"
       });
@@ -855,9 +855,9 @@ exports.getTeacherMaterialsForMcq = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Teacher Materials For MCQ Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load materials for MCQ. Please try again."
     });
   }
 };
@@ -903,18 +903,18 @@ exports.uploadMcqImageHandler = async (req, res) => {
 
     if (!teacher || !teacher.id) {
       if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     const { mcq_id } = req.body;
 
     if (!mcq_id) {
       if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(400).json({ success: false, message: "mcq_id is required" });
+      return res.status(200).json({ success: false, message: "MCQ ID is missing." });
     }
 
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "image file is required" });
+      return res.status(200).json({ success: false, message: "Please upload an image file." });
     }
 
     const [mcq] = await sequelize.query(
@@ -927,7 +927,7 @@ exports.uploadMcqImageHandler = async (req, res) => {
 
     if (!mcq) {
       fs.unlinkSync(req.file.path);
-      return res.status(404).json({ success: false, message: "MCQ not found or not yours" });
+      return res.status(200).json({ success: false, message: "MCQ not found. It may have been deleted. or not yours" });
     }
 
     const imageUrl = `uploads/mcq-images/${req.file.filename}`;
@@ -952,7 +952,7 @@ exports.uploadMcqImageHandler = async (req, res) => {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: error.message || "Failed to upload image"
     });
@@ -966,7 +966,7 @@ exports.deleteMcqImageHandler = async (req, res) => {
     const { mcq_id } = req.params;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     const [mcq] = await sequelize.query(
@@ -978,7 +978,7 @@ exports.deleteMcqImageHandler = async (req, res) => {
     );
 
     if (!mcq) {
-      return res.status(404).json({ success: false, message: "MCQ not found or not yours" });
+      return res.status(200).json({ success: false, message: "MCQ not found. It may have been deleted. or not yours" });
     }
 
     await sequelize.query(
@@ -993,7 +993,7 @@ exports.deleteMcqImageHandler = async (req, res) => {
     return res.json({ success: true, message: "MCQ image permanently deleted" });
   } catch (error) {
     console.error("Delete MCQ Image Error:", error);
-    return res.status(500).json({ success: false, message: "Failed to delete MCQ image" });
+    return res.status(200).json({ success: false, message: "Failed to delete MCQ image" });
   }
 };
 

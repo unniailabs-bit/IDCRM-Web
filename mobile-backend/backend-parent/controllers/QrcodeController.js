@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
@@ -58,9 +58,9 @@ exports.getMyDigitalId = async (req, res) => {
         });
 
         if (!students || students.length === 0) {
-            return res.status(404).json({
+            return res.status(200).json({
                 success: false,
-                message: "Student not found or not approved"
+                message: "Student not found or not yet approved."
             });
         }
 
@@ -99,9 +99,9 @@ exports.getMyDigitalId = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching student:", error);
-        return res.status(500).json({
+        return res.status(200).json({
             success: false,
-            message: "Server error"
+            message: "Could not generate QR code. Please try again."
         });
     }
 };
@@ -115,9 +115,9 @@ exports.getStudentByQr = async (req, res) => {
         const { form_token } = req.params;
 
         if (!form_token) {
-            return res.status(400).json({
+            return res.status(200).json({
                 success: false,
-                message: "Form token is required"
+                message: "QR form token is missing."
             });
         }
 
@@ -140,9 +140,9 @@ exports.getStudentByQr = async (req, res) => {
         );
 
         if (!students || students.length === 0) {
-            return res.status(404).json({
+            return res.status(200).json({
                 success: false,
-                message: "Student not found or not approved"
+                message: "Student not found or not yet approved."
             });
         }
 
@@ -204,9 +204,9 @@ exports.getStudentByQr = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching student by QR:", error);
-        return res.status(500).json({
+        return res.status(200).json({
             success: false,
-            message: "Internal server error"
+            message: "Could not load QR details. Please try again."
         });
     }
 };

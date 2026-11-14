@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 
@@ -39,7 +39,7 @@ exports.getNotifications = async (req, res) => {
         const teacher = req.teacher;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const notifications = await sequelize.query(
@@ -69,7 +69,7 @@ exports.getNotifications = async (req, res) => {
 
     } catch (error) {
         console.error("Get Notifications Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not send notification. Please try again." });
     }
 };
 
@@ -86,11 +86,11 @@ exports.sendNotification = async (req, res) => {
         const fullImageUrl = buildMediaUrl(media_url, req);
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!message) {
-            return res.status(400).json({ success: false, message: "Message is required" });
+            return res.status(200).json({ success: false, message: "Please enter a notification message." });
         }
 
         // If class_id is "null" string or undefined, treat as null (school-wide if needed, or validate)
@@ -157,7 +157,7 @@ exports.sendNotification = async (req, res) => {
 
     } catch (error) {
         console.error("Send Notification Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load notifications. Please try again." });
     }
 };
 
@@ -172,7 +172,7 @@ exports.updateNotification = async (req, res) => {
         const { message, class_id } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         // Check if notification belongs to the teacher
@@ -185,7 +185,7 @@ exports.updateNotification = async (req, res) => {
         );
 
         if (!notification) {
-            return res.status(404).json({ success: false, message: "Notification not found or unauthorized" });
+            return res.status(200).json({ success: false, message: "Notification not found. It may have been deleted. or unauthorized" });
         }
 
         const media_url = req.file ? normalizeMediaPath(req.file.path) : undefined;
@@ -217,7 +217,7 @@ exports.updateNotification = async (req, res) => {
 
     } catch (error) {
         console.error("Update Notification Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load notification details. Please try again." });
     }
 };
 
@@ -230,7 +230,7 @@ exports.deleteNotification = async (req, res) => {
         const { id } = req.params;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         // Check if notification belongs to the teacher
@@ -243,7 +243,7 @@ exports.deleteNotification = async (req, res) => {
         );
 
         if (!notification) {
-            return res.status(404).json({ success: false, message: "Notification not found or unauthorized" });
+            return res.status(200).json({ success: false, message: "Notification not found. It may have been deleted. or unauthorized" });
         }
 
         await sequelize.query(
@@ -260,6 +260,6 @@ exports.deleteNotification = async (req, res) => {
 
     } catch (error) {
         console.error("Delete Notification Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not delete notification. Please try again." });
     }
 };

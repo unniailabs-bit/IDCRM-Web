@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 
@@ -11,7 +11,7 @@ exports.getStudentsWithMessages = async (req, res) => {
         const teacher = req.teacher;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const students = await sequelize.query(
@@ -80,7 +80,7 @@ exports.getStudentsWithMessages = async (req, res) => {
 
     } catch (error) {
         console.error("Get Students with Messages Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load student messages. Please try again." });
     }
 };
 
@@ -93,7 +93,7 @@ exports.getChatHistory = async (req, res) => {
         const { student_id } = req.params;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         // Mark unread messages from this student as read
@@ -133,7 +133,7 @@ exports.getChatHistory = async (req, res) => {
 
     } catch (error) {
         console.error("Get Chat History Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load chat history. Please try again." });
     }
 };
 
@@ -146,11 +146,11 @@ exports.replyToStudent = async (req, res) => {
         const { student_id, message } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!student_id || !message) {
-            return res.status(400).json({ success: false, message: "student_id and message are required" });
+            return res.status(200).json({ success: false, message: "Please select a student and type a message." });
         }
 
         // Capture student details to keep message metadata consistent
@@ -160,7 +160,7 @@ exports.replyToStudent = async (req, res) => {
         );
 
         if (!student) {
-            return res.status(404).json({ success: false, message: "Student not found" });
+            return res.status(200).json({ success: false, message: "Student not found. They may have been removed." });
         }
 
         await sequelize.query(
@@ -219,7 +219,7 @@ exports.replyToStudent = async (req, res) => {
 
     } catch (error) {
         console.error("Reply to Student Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not send message. Please try again." });
     }
 };
 
@@ -231,7 +231,7 @@ exports.getSentMessages = async (req, res) => {
     try {
         const teacher = req.teacher;
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const sentMessages = await sequelize.query(
@@ -255,7 +255,7 @@ exports.getSentMessages = async (req, res) => {
         });
     } catch (error) {
         console.error("Get Sent Messages Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load sent messages. Please try again." });
     }
 };
 
@@ -268,15 +268,15 @@ exports.toggleMessaging = async (req, res) => {
         const { student_id, enabled } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (typeof enabled !== "boolean") {
-            return res.status(400).json({ success: false, message: "enabled (boolean) is required" });
+            return res.status(200).json({ success: false, message: "Invalid request to toggle messaging." });
         }
 
         if (!student_id) {
-            return res.status(400).json({ success: false, message: "student_id is required" });
+            return res.status(200).json({ success: false, message: "Please select a student." });
         }
 
         await sequelize.query(
@@ -294,7 +294,7 @@ exports.toggleMessaging = async (req, res) => {
         });
     } catch (error) {
         console.error("Toggle Messaging Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not update messaging status. Please try again." });
     }
 };
 
@@ -307,11 +307,11 @@ exports.getMessagingStatus = async (req, res) => {
         const { student_id } = req.query;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!student_id) {
-            return res.status(400).json({ success: false, message: "student_id is required" });
+            return res.status(200).json({ success: false, message: "Please select a student." });
         }
 
         const [result] = await sequelize.query(
@@ -328,6 +328,6 @@ exports.getMessagingStatus = async (req, res) => {
         });
     } catch (error) {
         console.error("Get Messaging Status Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to check messaging status. Please try again." });
     }
 };

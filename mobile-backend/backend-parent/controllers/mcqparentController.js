@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 // -----------------------------
@@ -10,7 +10,7 @@ exports.getMcqsForStudent = async (req, res) => {
     const { material_id } = req.query;
 
     if (!school_id) {
-      return res.status(400).json({ success: false, message: "School ID not found" });
+      return res.status(200).json({ success: false, message: "Session expired. Please re-login." });
     }
 
     let query = `SELECT id, question, option_a, option_b, option_c, option_d 
@@ -35,6 +35,6 @@ exports.getMcqsForStudent = async (req, res) => {
 
   } catch (error) {
     console.error("Get MCQs Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load MCQ practice. Please try again." });
   }
 };

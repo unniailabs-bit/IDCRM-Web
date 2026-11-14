@@ -1,4 +1,4 @@
-const path = require('path');
+﻿const path = require('path');
 const fs = require('fs');
 const sequelize = require('../../config/db');
 const { QueryTypes } = require('sequelize');
@@ -16,7 +16,7 @@ exports.addAward = async (req, res) => {
     const { awarded_to, award_title, category, medal_type, achievement, date_awarded, description, class_id, division_id } = req.body;
 
     if (!awarded_to || !award_title || !category || !medal_type || !achievement || !date_awarded || !class_id || !division_id) {
-      return res.status(400).json({ success: false, message: 'All required fields must be filled.' });
+      return res.status(200).json({ success: false, message: 'Please fill in all award fields before submitting.' });
     }
 
     // Sanitize strings
@@ -69,7 +69,7 @@ exports.addAward = async (req, res) => {
 
   } catch (error) {
     console.error('Add Award Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not create award. Please try again.' });
   }
 };
 
@@ -114,7 +114,7 @@ exports.getAwards = async (req, res) => {
 
   } catch (error) {
     console.error('Get Awards Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Unable to load awards. Please try again.' });
   }
 };
 
@@ -147,7 +147,7 @@ exports.getAwardById = async (req, res) => {
     );
 
     if (!award) {
-      return res.status(404).json({ success: false, message: 'Award not found' });
+      return res.status(200).json({ success: false, message: 'Award not found. It may have been deleted.' });
     }
 
     const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
@@ -157,7 +157,7 @@ exports.getAwardById = async (req, res) => {
 
   } catch (error) {
     console.error('Get Award By ID Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not update award. Please try again.' });
   }
 };
 
@@ -179,7 +179,7 @@ exports.deleteAward = async (req, res) => {
     );
 
     if (!award) {
-      return res.status(404).json({ success: false, message: 'Award not found' });
+      return res.status(200).json({ success: false, message: 'Award not found. It may have been deleted.' });
     }
 
     // Delete photo if exists
@@ -197,6 +197,6 @@ exports.deleteAward = async (req, res) => {
 
   } catch (error) {
     console.error('Delete Award Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not delete award. Please try again.' });
   }
 };

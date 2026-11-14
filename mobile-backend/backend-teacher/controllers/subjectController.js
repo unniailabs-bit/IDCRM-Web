@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
@@ -11,11 +11,11 @@ exports.addSubject = async (req, res) => {
         const { class_id, division_id, subject_name } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!class_id || !division_id || !subject_name) {
-            return res.status(400).json({ success: false, message: "class_id, division_id, and subject_name are required" });
+            return res.status(200).json({ success: false, message: "class_id, division_id, and subject_name are required" });
         }
 
         // Insert subject, ignore if already exists (due to UNIQUE constraint)
@@ -44,7 +44,7 @@ exports.addSubject = async (req, res) => {
 
     } catch (error) {
         console.error("Add Subject Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load subjects. Please try again." });
     }
 };
 
@@ -57,11 +57,11 @@ exports.getSubjects = async (req, res) => {
         const { class_id, division_id } = req.query;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!class_id || !division_id) {
-            return res.status(400).json({ success: false, message: "class_id and division_id are required" });
+            return res.status(200).json({ success: false, message: "Please select a class and division." });
         }
 
         const subjects = await sequelize.query(
@@ -90,7 +90,7 @@ exports.getSubjects = async (req, res) => {
 
     } catch (error) {
         console.error("Get Subjects Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not create subject. Please try again." });
     }
 };
 
@@ -103,11 +103,11 @@ exports.updateSubject = async (req, res) => {
         const { id, subject_name } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!id) {
-            return res.status(400).json({ success: false, message: "id is required" });
+            return res.status(200).json({ success: false, message: "Subject ID is missing." });
         }
 
         let updateFields = [];
@@ -119,7 +119,7 @@ exports.updateSubject = async (req, res) => {
         }
 
         if (updateFields.length === 0) {
-            return res.status(400).json({ success: false, message: "No fields to update" });
+            return res.status(200).json({ success: false, message: "Please provide at least one field to update." });
         }
 
         const query = `
@@ -135,14 +135,14 @@ exports.updateSubject = async (req, res) => {
         });
 
         if (!result || result.length === 0) {
-            return res.status(404).json({ success: false, message: "Subject not found or unauthorized" });
+            return res.status(200).json({ success: false, message: "Subject not found or you don't have permission." });
         }
 
         return res.json({ success: true, message: "Subject updated successfully", subject: result[0] });
 
     } catch (error) {
         console.error("Update Subject Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not update subject. Please try again." });
     }
 };
 
@@ -156,7 +156,7 @@ exports.deleteSubject = async (req, res) => {
         const { id } = req.params;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const result = await sequelize.query(
@@ -171,6 +171,6 @@ exports.deleteSubject = async (req, res) => {
 
     } catch (error) {
         console.error("Delete Subject Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not delete subject. Please try again." });
     }
 };

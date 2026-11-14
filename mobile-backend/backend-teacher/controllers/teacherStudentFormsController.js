@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 // =======================
@@ -8,7 +8,7 @@ const getStudentForms = async (req, res) => {
   try {
     const teacherId = req.teacher?.id;
     if (!teacherId)
-      return res.status(400).json({ success: false, message: "Teacher ID missing" });
+      return res.status(200).json({ success: false, message: "Session expired. Please re-login." });
 
     // 2) Teacher ke saare divisions using teacher_id
     const divisions = await sequelize.query(
@@ -45,7 +45,7 @@ const getStudentForms = async (req, res) => {
     return res.json({ success: true, data: formsWithLinks });
   } catch (err) {
     console.error("🔥 Error in getStudentForms:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load student forms. Please try again." });
   }
 };
 
@@ -59,7 +59,7 @@ const updateFormStatus = async (req, res) => {
     const { status } = req.body;
 
     if (!["approved", "rejected"].includes(status))
-      return res.status(400).json({ success: false, message: "Invalid status" });
+      return res.status(200).json({ success: false, message: "Invalid status selected for the form." });
 
     // 2) Verify form belongs to teacher's division using teacher_id
     const form = await sequelize.query(
@@ -71,10 +71,10 @@ const updateFormStatus = async (req, res) => {
     );
 
     if (!form.length)
-      return res.status(404).json({ success: false, message: "Form not found" });
+      return res.status(200).json({ success: false, message: "Student form not found. It may have been removed." });
 
     if (form[0].teacher_id !== teacherId)
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res.status(200).json({ success: false, message: "You are not authorized to access this form." });
 
     // If approving, check if roll_number already exists in this division among approved forms
     if (status === "approved" && form[0].roll_number !== null && form[0].roll_number !== undefined && form[0].roll_number !== '') {
@@ -97,7 +97,7 @@ const updateFormStatus = async (req, res) => {
       );
 
       if (existingRoll.length > 0) {
-        return res.status(409).json({
+        return res.status(200).json({
           success: false,
           message: `Cannot approve form: Roll number ${form[0].roll_number} already exists for an approved student in this division.`
         });
@@ -118,7 +118,7 @@ const updateFormStatus = async (req, res) => {
     });
   } catch (err) {
     console.error("🔥 Error in updateFormStatus:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not update form status. Please try again." });
   }
 };
 
@@ -136,9 +136,9 @@ const requestCorrection = async (req, res) => {
     } = req.body;
 
     if (!fields_requiring_correction || Object.keys(fields_requiring_correction).length === 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: 'Please select at least one field for correction'
+        message: 'Please select at least one field to request correction.'
       });
     }
 
@@ -153,11 +153,11 @@ const requestCorrection = async (req, res) => {
     );
 
     if (!form.length) {
-      return res.status(404).json({ success: false, message: 'Form not found' });
+      return res.status(200).json({ success: false, message: 'Student form not found. It may have been removed.' });
     }
 
     if (form[0].teacher_id !== teacherId) {
-      return res.status(403).json({ success: false, message: 'Not authorized' });
+      return res.status(200).json({ success: false, message: 'You are not authorized to access this form.' });
     }
 
     // Generate individual form token
@@ -212,7 +212,7 @@ const requestCorrection = async (req, res) => {
     });
   } catch (err) {
     console.error('🔥 Error in requestCorrection:', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(200).json({ success: false, message: 'Could not request correction. Please try again.' });
   }
 };
 
@@ -235,10 +235,10 @@ const updateStudentForm = async (req, res) => {
     );
 
     if (!form.length)
-      return res.status(404).json({ success: false, message: "Form not found" });
+      return res.status(200).json({ success: false, message: "Student form not found. It may have been removed." });
 
     if (form[0].teacher_id !== teacherId)
-      return res.status(403).json({ success: false, message: "Not authorized" });
+      return res.status(200).json({ success: false, message: "You are not authorized to access this form." });
 
     // 3) Construct update query dynamically
     const allowedFields = [
@@ -315,7 +315,7 @@ const updateStudentForm = async (req, res) => {
 
     const fields = Object.keys(finalUpdateData);
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: "No valid fields to update" });
+      return res.status(200).json({ success: false, message: "No valid fields selected to update." });
     }
 
     // Check for duplicate Roll Number in the same division if setting status to approved or modifying roll_number on an approved form
@@ -343,7 +343,7 @@ const updateStudentForm = async (req, res) => {
       );
 
       if (rollCheck.length > 0) {
-        return res.status(409).json({
+        return res.status(200).json({
           success: false,
           message: `A student with roll number ${targetRollNumber} already exists in this division.`
         });
@@ -381,7 +381,7 @@ const updateStudentForm = async (req, res) => {
     });
   } catch (err) {
     console.error("🔥 Error in updateStudentForm:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not update form. Please try again." });
   }
 };
 

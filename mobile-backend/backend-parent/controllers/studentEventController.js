@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { cleanupExpiredUploads } = require("../../utils/autoDeleteCleanup");
 
@@ -73,7 +73,7 @@ exports.getStudentEvents = async (req, res) => {
         AND (e.auto_delete_at IS NULL OR e.auto_delete_at >= CURRENT_DATE)
 
       GROUP BY e.id
-      ORDER BY e.event_date DESC
+      ORDER BY e.evett_date DESC
       `,
       {
         replacements: {
@@ -86,7 +86,7 @@ exports.getStudentEvents = async (req, res) => {
     );
 
     /**
-     * ✅ Response
+     * ✅ Respoase
      */
     return res.status(200).json({
       success: true,
@@ -97,7 +97,7 @@ exports.getStudentEvents = async (req, res) => {
 
   } catch (error) {
     console.error("Get Student Events Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       message: "Internal Server Error"
     });

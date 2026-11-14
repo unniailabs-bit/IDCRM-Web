@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToClass } = require("../../utils/pushNotification");
 const { isValidAutoDeleteDate } = require("../../utils/autoDeleteDate");
@@ -25,16 +25,16 @@ exports.uploadEventGallery = async (req, res) => {
 
     // ✅ Validate required fields
     if (!event_title || !event_category || !event_date || !class_id || !division_id) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
+      return res.status(200).json({ success: false, message: "Please fill in all required fields." });
     }
 
     if (!isValidAutoDeleteDate(auto_delete_at)) {
-      return res.status(400).json({ success: false, message: "A valid auto-delete date today or later is required" });
+      return res.status(200).json({ success: false, message: "Please select a valid auto-delete date (today or later)." });
     }
 
     // ✅ Check files
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: "At least one photo or video is required" });
+      return res.status(200).json({ success: false, message: "Please upload at least one photo or video." });
     }
 
     // 🔐 Teacher class-division validation using teacher_id
@@ -57,9 +57,9 @@ exports.uploadEventGallery = async (req, res) => {
     );
 
     if (!access.length) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: "Unauthorized class/division access"
+        message: "You don't have access to this class/division."
       });
     }
 
@@ -135,7 +135,7 @@ exports.uploadEventGallery = async (req, res) => {
 
   } catch (error) {
     console.error("Upload Event Gallery Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not create event. Please try again." });
   }
 };
 /**
@@ -187,7 +187,7 @@ exports.getEventGallery = async (req, res) => {
 
   } catch (error) {
     console.error("Get Event Gallery Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load events. Please try again." });
   }
 };
 
@@ -218,13 +218,13 @@ exports.deleteEvent = async (req, res) => {
     );
 
     if (!deletedRows.length) {
-      return res.status(404).json({ success: false, message: "Event not found or unauthorized" });
+      return res.status(200).json({ success: false, message: "Event not found or you don't have permission." });
     }
 
     return res.json({ success: true, message: "Event deleted successfully" });
 
   } catch (error) {
     console.error("Delete Event Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not delete event. Please try again." });
   }
 };

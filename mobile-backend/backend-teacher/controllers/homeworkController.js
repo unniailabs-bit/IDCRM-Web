@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const path = require("path");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 const { QueryTypes } = require("sequelize");
@@ -11,7 +11,7 @@ exports.createHomework = async (req, res) => {
 
     // Validate required fields
     if (!class_id || !division_id || !subject || !assignment_title || !due_date) {
-      return res.status(400).json({ success: false, message: "Required fields missing" });
+      return res.status(200).json({ success: false, message: "Please fill in all required homework fields." });
     }
 
     // Handle file uploads (if any)
@@ -69,7 +69,7 @@ exports.createHomework = async (req, res) => {
 
   } catch (err) {
     console.error("Create Homework Error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(200).json({ success: false, message: "Could not create homework. Please try again." });
   }
 };
 // Get teacher's classes and divisions
@@ -87,7 +87,7 @@ exports.getTeacherClasses = async (req, res) => {
     );
 
     if (!teacher) {
-      return res.status(404).json({ success: false, message: "Teacher not found" });
+      return res.status(200).json({ success: false, message: "Teacher account not found. Please re-login." });
     }
 
     const teacherName = teacher.name;
@@ -107,6 +107,6 @@ exports.getTeacherClasses = async (req, res) => {
 
   } catch (error) {
     console.error("Get Teacher Classes Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(200).json({ success: false, message: "Unable to load classes. Please try again." });
   }
 };

@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 // Test commit
@@ -50,9 +50,9 @@ exports.getStudentsForAttendance = async (req, res) => {
 
   } catch (error) {
     console.error("Get Students For Attendance Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Failed to fetch students"
+      message: "Unable to load students. Please try again."
     });
   }
 };
@@ -69,9 +69,9 @@ exports.markAttendance = async (req, res) => {
     const { date, attendance } = req.body;
 
     if (!date || !Array.isArray(attendance) || attendance.length === 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid attendance data"
+        message: "Attendance data is missing or invalid."
       });
     }
 
@@ -99,9 +99,11 @@ exports.markAttendance = async (req, res) => {
     // Check if entry exists AND attendance is NOT required
     // using !is_attendance_required handles false, 0, null
     if (calendarEntry && !calendarEntry.is_attendance_required) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: `Cannot mark attendance: ${date} is ${calendarEntry.title} (${calendarEntry.type})`
+        isHoliday: true,
+        type: calendarEntry.type,
+        message: `Today is a holiday: ${calendarEntry.title}. Attendance cannot be marked.`
       });
     }
 
@@ -125,9 +127,9 @@ exports.markAttendance = async (req, res) => {
     );
 
     if (!students.length) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: "No valid students found for attendance"
+        message: "No students found for your class. Please check your class assignment."
       });
     }
 
@@ -155,9 +157,9 @@ exports.markAttendance = async (req, res) => {
     });
 
     if (!insertData.length) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "No valid attendance records"
+        message: "No attendance records to submit."
       });
     }
 
@@ -224,9 +226,9 @@ exports.markAttendance = async (req, res) => {
 
   } catch (error) {
     console.error("Mark Attendance Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Failed to mark attendance"
+      message: "Could not save attendance. Please try again."
     });
   }
 };
@@ -247,9 +249,9 @@ exports.updateAttendance = async (req, res) => {
     const { student_id, date, status } = req.body;
 
     if (!student_id || !date || !["present", "absent"].includes(status)) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid data"
+        message: "Student ID, date, or status is missing."
       });
     }
 
@@ -275,9 +277,11 @@ exports.updateAttendance = async (req, res) => {
     console.log("[UpdateAttendance] Calendar Entry:", calendarEntry);
 
     if (calendarEntry && !calendarEntry.is_attendance_required) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: `Cannot update attendance: ${date} is ${calendarEntry.title} (${calendarEntry.type})`
+        isHoliday: true,
+        type: calendarEntry.type,
+        message: `Today is a holiday: ${calendarEntry.title}. Attendance cannot be marked.`
       });
     }
 
@@ -299,9 +303,9 @@ exports.updateAttendance = async (req, res) => {
     );
 
     if (!student.length) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: "Student not allowed"
+        message: "This student does not belong to your class."
       });
     }
 
@@ -360,9 +364,9 @@ exports.updateAttendance = async (req, res) => {
 
   } catch (error) {
     console.error("Update Attendance Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Failed to update attendance"
+      message: "Could not update attendance. Please try again."
     });
   }
 };
@@ -380,9 +384,9 @@ exports.getAttendanceStatus = async (req, res) => {
     const { date } = req.query;
 
     if (!date) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Date is required"
+        message: "Please provide a date to fetch attendance."
       });
     }
 
@@ -430,9 +434,9 @@ exports.getAttendanceStatus = async (req, res) => {
 
   } catch (error) {
     console.error("Get Attendance Status Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Failed to fetch attendance status"
+      message: "Unable to load attendance status. Please try again."
     });
   }
 };

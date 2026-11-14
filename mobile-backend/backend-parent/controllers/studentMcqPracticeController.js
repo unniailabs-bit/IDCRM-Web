@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 
 /**
  * START PRACTICE
@@ -39,9 +39,9 @@ exports.startPractice = async (req, res) => {
     );
 
     if (result.total === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: "No MCQs available"
+        message: "No practice questions are available for this topic."
       });
     }
 
@@ -72,9 +72,9 @@ exports.startPractice = async (req, res) => {
 
   } catch (err) {
     console.error("Start Practice Error:", err);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Could not start practice. Please try again."
     });
   }
 };
@@ -96,16 +96,16 @@ exports.submitPractice = async (req, res) => {
     }
 
     if (!practice_id) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "practice_id is required"
+        message: "Practice session ID is missing. Please restart."
       });
     }
 
     if (!Array.isArray(answers) || answers.length === 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "answers must be a non-empty array"
+        message: "Please answer at least one question before submitting."
       });
     }
 
@@ -207,9 +207,9 @@ exports.submitPractice = async (req, res) => {
 
   } catch (err) {
     console.error("Submit Practice Error:", err);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Could not submit answers. Please try again."
     });
   }
 };
@@ -256,9 +256,9 @@ exports.getPracticeHistory = async (req, res) => {
 
   } catch (err) {
     console.error("Practice History Error:", err);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load practice history. Please try again."
     });
   }
 };
@@ -428,6 +428,6 @@ exports.getMaterialWiseMcqs = async (req, res) => {
 
   } catch (error) {
     console.error("Get Material Wise MCQs Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load MCQ questions. Please try again." });
   }
 };

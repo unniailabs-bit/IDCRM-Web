@@ -1,4 +1,4 @@
-const { QueryTypes } = require("sequelize");
+﻿const { QueryTypes } = require("sequelize");
 const sequelize = require("../../config/db");
 
 /**
@@ -9,9 +9,9 @@ exports.getAppointments = async (req, res) => {
     const school_id = req.parent.school_id;
 
     if (!school_id) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "School ID not found in session",
+        message: "Session expired. Please re-login.",
       });
     }
 
@@ -32,9 +32,9 @@ exports.getAppointments = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Appointments Error:", error);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error while fetching appointments",
+      message: "Unable to load appointments. Please try again.",
     });
   }
 };

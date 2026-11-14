@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
@@ -34,9 +34,9 @@ exports.getStudentExams = async (req, res) => {
 
   } catch (error) {
     console.error("Student Get Exams Error:", error);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load exams. Please try again."
     });
   }
 };
@@ -65,9 +65,9 @@ exports.getStudentExamById = async (req, res) => {
     );
 
     if (exam.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: "Exam not found"
+        message: "Exam not found. It may have been removed."
       });
     }
 
@@ -78,9 +78,9 @@ exports.getStudentExamById = async (req, res) => {
 
   } catch (error) {
     console.error("Student Get Exam By ID Error:", error);
-    res.status(500).json({
+    res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load exam details. Please try again."
     });
   }
 };

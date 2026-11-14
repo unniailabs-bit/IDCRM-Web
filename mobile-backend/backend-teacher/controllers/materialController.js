@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { sendPushToClass } = require("../../utils/pushNotification");
 
 
@@ -22,9 +22,9 @@ exports.uploadMaterials = async (req, res) => {
     const { class_id, division_id, material_type, title, subject_id } = req.body;
 
     if (!class_id || !division_id || !material_type || !title || !subject_id) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Required fields missing (class_id, division_id, material_type, title, subject_id)"
+        message: "Please select a class, division, and subject before uploading. (class_id, division_id, material_type, title, subject_id)"
       });
     }
 
@@ -32,25 +32,25 @@ exports.uploadMaterials = async (req, res) => {
     const normalizedType = material_type ? material_type.toString().trim().toLowerCase() : "";
     const allowedTypes = ["chapter", "notes", "video"];
     if (!allowedTypes.includes(normalizedType)) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid material_type. Must be 'chapter', 'notes', or 'video'."
+        message: "Invalid material type selected. selected.. Must be 'chapter', 'notes', or 'video'."
       });
     }
 
     //  Material type validation
     if (!Object.values(MATERIAL_TYPES).includes(material_type)) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid material type"
+        message: "Invalid material type selected."
       });
     }
 
     //  Files check
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "No files uploaded"
+        message: "Please select at least one file to upload."
       });
     }
 
@@ -60,7 +60,7 @@ exports.uploadMaterials = async (req, res) => {
     for (const file of req.files) {
       const ext = file.originalname.split(".").pop().toLowerCase();
       if (!allowedExtensions.includes(ext)) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
           message: `Only ${allowedExtensions.join(", ")} files allowed for ${material_type}`
         });
@@ -112,9 +112,9 @@ exports.uploadMaterials = async (req, res) => {
 
   } catch (error) {
     console.error("Upload Materials Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Upload failed. Please try again."
     });
   }
 };
@@ -128,7 +128,7 @@ exports.getMaterials = async (req, res) => {
 
     // 1️⃣ Auth check
     if (!teacher || !teacher.id) {
-      return res.status(401).json({
+      return res.status(200).json({
         success: false,
         message: "Unauthorized"
       });
@@ -139,9 +139,9 @@ exports.getMaterials = async (req, res) => {
       material_type &&
       !Object.values(MATERIAL_TYPES).includes(material_type)
     ) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Invalid material type filter"
+        message: "Invalid filter selected. Please choose a valid material type."
       });
     }
 
@@ -201,9 +201,9 @@ exports.getMaterials = async (req, res) => {
 
   } catch (error) {
     console.error("Get Materials Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server error"
+      message: "Unable to load materials. Please try again."
     });
   }
 };
@@ -217,11 +217,11 @@ exports.getTeacherSubjects = async (req, res) => {
     const { class_id, division_id } = req.query;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     if (!class_id || !division_id) {
-      return res.status(400).json({ success: false, message: "class_id and division_id are required" });
+      return res.status(200).json({ success: false, message: "class_id and division_id are required" });
     }
 
     const subjects = await sequelize.query(
@@ -250,7 +250,7 @@ exports.getTeacherSubjects = async (req, res) => {
 
   } catch (error) {
     console.error("Get Teacher Subjects Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load subjects. Please try again." });
   }
 };
 
@@ -263,11 +263,11 @@ exports.updateMaterial = async (req, res) => {
     const { id, title, material_type, subject_id } = req.body;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     if (!id) {
-      return res.status(400).json({ success: false, message: "id is required" });
+      return res.status(200).json({ success: false, message: "id is required" });
     }
 
     // Build dynamic update query
@@ -288,7 +288,7 @@ exports.updateMaterial = async (req, res) => {
     }
 
     if (updateFields.length === 0) {
-      return res.status(400).json({ success: false, message: "No fields to update" });
+      return res.status(200).json({ success: false, message: "No fields to update" });
     }
 
     const query = `
@@ -304,14 +304,14 @@ exports.updateMaterial = async (req, res) => {
     });
 
     if (!result || result.length === 0) {
-      return res.status(404).json({ success: false, message: "Material not found or unauthorized" });
+      return res.status(200).json({ success: false, message: "Material not found or unauthorized" });
     }
 
     return res.json({ success: true, message: "Material updated successfully", material: result[0] });
 
   } catch (error) {
     console.error("Update Material Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not update material. Please try again." });
   }
 };
 
@@ -324,7 +324,7 @@ exports.deleteMaterial = async (req, res) => {
     const { id } = req.params;
 
     if (!teacher || !teacher.id) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(200).json({ success: false, message: "Unauthorized" });
     }
 
     // Optional: Delete files from disk here if needed
@@ -341,6 +341,6 @@ exports.deleteMaterial = async (req, res) => {
 
   } catch (error) {
     console.error("Delete Material Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not delete material. Please try again." });
   }
 };

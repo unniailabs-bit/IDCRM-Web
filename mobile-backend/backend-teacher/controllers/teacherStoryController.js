@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
@@ -12,7 +12,7 @@ exports.uploadStory = async (req, res) => {
     try {
         const teacher = req.teacher;
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         // Parse data from req.body and normalize
@@ -23,39 +23,39 @@ exports.uploadStory = async (req, res) => {
 
         // Validate required fields
         if (class_id === undefined || division_id === undefined || !story_type || !category) {
-            return res.status(400).json({
+            return res.status(200).json({
                 success: false,
                 message: "class_id, division_id, story_type and category are required"
             });
         }
 
         if (!isValidAutoDeleteDate(auto_delete_at)) {
-            return res.status(400).json({
+            return res.status(200).json({
                 success: false,
-                message: "A valid auto-delete date today or later is required"
+                message: "Please select a valid auto-delete date (today or later)."
             });
         }
 
         const validTypes = ["text", "image", "video"];
         if (!validTypes.includes(story_type)) {
-            return res.status(400).json({ success: false, message: "Invalid story_type. Must be text, image, or video." });
+            return res.status(200).json({ success: false, message: "Invalid story type selected.. Must be text, image, or video." });
         }
 
         const validCategories = ["Announcement", "Achievement", "Sports Event", "Cultural Event", "Birthday", "Festival"];
         if (!validCategories.some(c => c.toLowerCase() === category.toLowerCase())) {
-            return res.status(400).json({ success: false, message: "Invalid category" });
+            return res.status(200).json({ success: false, message: "Invalid category selected for the story." });
         }
 
         // Text story requires story_content
         if (story_type === "text" && (!story_content || !story_content.trim())) {
-            return res.status(400).json({ success: false, message: "story_content is required for text stories" });
+            return res.status(200).json({ success: false, message: "Please enter content for your text story." });
         }
 
         // Image/Video story requires file upload
         let media_url = null;
         if (story_type === "image" || story_type === "video") {
             if (!req.file) {
-                return res.status(400).json({ success: false, message: "File upload is required for image/video stories" });
+                return res.status(200).json({ success: false, message: "Please upload an image or video for this story." });
             }
 
             // Path to the file already saved by multer
@@ -96,7 +96,7 @@ exports.uploadStory = async (req, res) => {
 
     } catch (error) {
         console.error("Upload Story Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not post story. Please try again." });
     }
 };
 
@@ -107,7 +107,7 @@ exports.getTeacherStories = async (req, res) => {
     try {
         const teacher = req.teacher;
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const stories = await sequelize.query(
@@ -138,7 +138,7 @@ exports.getTeacherStories = async (req, res) => {
 
     } catch (error) {
         console.error("Get Teacher Stories Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load stories. Please try again." });
     }
 };
 
@@ -151,7 +151,7 @@ exports.deleteStory = async (req, res) => {
         const { id } = req.params;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         const [story] = await sequelize.query(
@@ -163,7 +163,7 @@ exports.deleteStory = async (req, res) => {
         );
 
         if (!story) {
-            return res.status(404).json({ success: false, message: "Story not found or unauthorized" });
+            return res.status(200).json({ success: false, message: "Story not found or you don't have permission to delete it." });
         }
 
         if (story.media_url) {
@@ -185,6 +185,6 @@ exports.deleteStory = async (req, res) => {
 
     } catch (error) {
         console.error("Delete Story Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not delete story. Please try again." });
     }
 };

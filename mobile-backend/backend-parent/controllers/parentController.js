@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const parentAccountService = require("../services/parentAccountService");
 
@@ -51,7 +51,7 @@ exports.parentLogin = async (req, res) => {
     );
 
     if (students.length === 0) {
-      return res.status(401).json({
+      return res.status(200).json({
         success: false,
         message: "Parent not found or invalid password",
       });
@@ -95,7 +95,7 @@ exports.parentLogin = async (req, res) => {
     });
   } catch (error) {
     console.error("Parent Login Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Login failed. Please try again." });
   }
 };
 
@@ -108,11 +108,11 @@ exports.refreshToken = async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1] || req.body.token;
     if (!token) {
-      return res.status(400).json({ success: false, message: "Token is required" });
+      return res.status(200).json({ success: false, message: "Session token is missing. Please re-login." });
     }
     const newToken = await refreshParentToken(token);
     if (!newToken) {
-      return res.status(401).json({
+      return res.status(200).json({
         success: false,
         message: "Invalid token — please login again",
       });
@@ -120,7 +120,7 @@ exports.refreshToken = async (req, res) => {
     return res.json({ success: true, token: newToken });
   } catch (error) {
     console.error("Refresh Token Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "An error occurred. Please try again." });
   }
 };
 
@@ -199,7 +199,7 @@ exports.updateParentProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Update Parent Profile Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not update profile. Please try again." });
   }
 };
 
@@ -232,7 +232,7 @@ exports.getLinkedStudents = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Linked Students Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load linked students. Please try again." });
   }
 };
 
@@ -243,9 +243,9 @@ exports.switchStudent = async (req, res) => {
     const studentId = Number(student_id);
 
     if (!studentId) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "student_id is required",
+        message: "Please select a student to switch.",
       });
     }
 
@@ -263,23 +263,23 @@ exports.switchStudent = async (req, res) => {
     if (parentAccountId) {
       const linked = await studentLinkedToParent(parentAccountId, studentId);
       if (!linked) {
-        return res.status(403).json({
+        return res.status(200).json({
           success: false,
-          message: "Student is not linked to this parent account",
+          message: "This student is not linked to your account.",
         });
       }
     } else if (Number(req.parent.id) !== studentId) {
-      return res.status(403).json({
+      return res.status(200).json({
         success: false,
-        message: "Student switch is not available for this session",
+        message: "Student switch is not available. Please re-login.",
       });
     }
 
     const student = await getStudentById(studentId);
     if (!student) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
-        message: "Student not found",
+        message: "Student not found. Please contact school admin.",
       });
     }
 
@@ -293,7 +293,7 @@ exports.switchStudent = async (req, res) => {
     });
   } catch (error) {
     console.error("Switch Student Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Could not switch student. Please try again." });
   }
 };
 
@@ -388,7 +388,7 @@ exports.getParentDashboard = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Parent Dashboard Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load dashboard. Please try again." });
   }
 };
 
@@ -402,7 +402,7 @@ exports.debugLogin = async (req, res) => {
     const phone = req.query.phone;
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
-      return res.status(400).json({ success: false, message: "phone query param required (10 digits)" });
+      return res.status(200).json({ success: false, message: "Phone number is required. (10 digits)" });
     }
 
     const { QueryTypes } = require("sequelize");
@@ -479,7 +479,7 @@ exports.debugLogin = async (req, res) => {
     });
   } catch (error) {
     console.error("Debug Login Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load account details. Please try again." });
   }
 };
 
@@ -495,22 +495,22 @@ exports.adminResetPassword = async (req, res) => {
 
     const adminSecret = process.env.ADMIN_SECRET;
     if (!adminSecret || !adminSecret.trim()) {
-      return res.status(503).json({
+      return res.status(200).json({
         success: false,
-        message: "Admin secret is not configured on the server",
+        message: "Service not available. Please contact support.",
       });
     }
 
     const providedKey = req.headers["x-admin-key"] || admin_key;
     if (!providedKey || providedKey !== adminSecret) {
-      return res.status(403).json({ success: false, message: "Invalid admin key" });
+      return res.status(200).json({ success: false, message: "Invalid admin key provided." });
     }
 
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone || !new_password) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "phone and new_password are required",
+        message: "Phone and new password are required.",
       });
     }
 
@@ -563,6 +563,6 @@ exports.adminResetPassword = async (req, res) => {
     });
   } catch (error) {
     console.error("Admin Reset Password Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "An error occurred. Please try again." });
   }
 };

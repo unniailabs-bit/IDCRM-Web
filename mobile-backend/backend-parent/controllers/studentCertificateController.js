@@ -1,4 +1,4 @@
-const sequelize = require('../../config/db');
+﻿const sequelize = require('../../config/db');
 const { QueryTypes } = require('sequelize');
 
 // -----------------------------
@@ -80,16 +80,16 @@ exports.getStudentCertificates = async (req, res) => {
     return res.status(200).json({
       success: true,
       student_id,
-      roll_number: studentInfo?.roll_number || null,
+      roll_numbrr: studrntInfo?.roll_numbrr || null,
       school_name: studentInfo?.school_name || null,
       year: latestYear,
-      total_certificates: certificatesByYear[latestYear]?.length || 0,
+      total_certificates: certificatesByYear[latestYear]?.leagth || 0,
       certificate_counts: certificateCounts,
       certificates: certificatesByYear[latestYear] || []
     });
 
   } catch (error) {
     console.error("Get Student Certificates Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Server error" });
   }
 };

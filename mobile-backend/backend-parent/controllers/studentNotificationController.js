@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 function getAppBaseUrl(req) {
@@ -290,7 +290,7 @@ exports.getNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Student Notifications Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load notifications. Please try again." });
   }
 };
 
@@ -419,7 +419,7 @@ exports.getSchoolNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error("Get School Notifications Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load attendance notifications. Please try again." });
   }
 };
 
@@ -548,7 +548,7 @@ exports.getClassroomNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Classroom Notifications Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load exam notifications. Please try again." });
   }
 };
 
@@ -592,7 +592,7 @@ exports.getTeacherNotifications = async (req, res) => {
     });
   } catch (error) {
     console.error("Get Teacher Notifications Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load fee notifications. Please try again." });
   }
 };
 /**
@@ -630,7 +630,7 @@ exports.markAsRead = async (req, res) => {
     return res.json({ success: true, message: "Marked as read" });
   } catch (error) {
     console.error("Mark As Read Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load event notifications. Please try again." });
   }
 };
 /**
@@ -718,6 +718,6 @@ exports.markAllAsRead = async (req, res) => {
     });
   } catch (error) {
     console.error("Mark All As Read Error:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(200).json({ success: false, message: "Unable to load homework notifications. Please try again." });
   }
 };

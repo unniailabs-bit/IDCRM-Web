@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
@@ -29,9 +29,9 @@ exports.getFeeDetails = async (req, res) => {
         );
 
         if (!feePlans.length) {
-            return res.status(404).json({
+            return res.status(200).json({
                 success: false,
-                message: "No fee plan found for this class."
+                message: "No fee plan found for your class. Contact school admin."
             });
         }
 
@@ -59,6 +59,6 @@ exports.getFeeDetails = async (req, res) => {
 
     } catch (error) {
         console.error("Get Student Fee Matches Error:", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Unable to load fee details. Please try again." });
     }
 };

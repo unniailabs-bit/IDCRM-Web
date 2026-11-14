@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 /**
@@ -10,11 +10,11 @@ exports.registerToken = async (req, res) => {
         const { fcm_token, device_info } = req.body;
 
         if (!teacher || !teacher.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return res.status(200).json({ success: false, message: "Unauthorized" });
         }
 
         if (!fcm_token) {
-            return res.status(400).json({ success: false, message: "FCM token is required" });
+            return res.status(200).json({ success: false, message: "Device token is missing. Please try again." });
         }
 
         // Use UPSERT logic for the fcm_tokens table
@@ -46,6 +46,6 @@ exports.registerToken = async (req, res) => {
 
     } catch (error) {
         console.error("Register FCM Token Error (Teacher):", error);
-        return res.status(500).json({ success: false, message: "Server error" });
+        return res.status(200).json({ success: false, message: "Could not register device. Please try again." });
     }
 };

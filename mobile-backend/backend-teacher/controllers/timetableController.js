@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 const { sendPushToUsers } = require("../../utils/pushNotification");
 
@@ -27,17 +27,17 @@ exports.createTimetable = async (req, res) => {
       if (assignedClasses.length === 1) {
         finalClassId = assignedClasses[0].class_id;
       } else if (assignedClasses.length > 1) {
-        return res.status(400).json({
+        return res.status(200).json({
           success: false,
-          message: "Multiple classes found for teacher. Please provide class_id explicitly."
+          message: "You have multiple classes. Please select a specific class."
         });
       }
     }
 
     if (!finalClassId) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "class_id is required"
+        message: "Please select a class to create a timetable."
       });
     }
 
@@ -46,9 +46,9 @@ exports.createTimetable = async (req, res) => {
 
     // ✅ Validate all required fields for DB (timetable_file is now optional for Step 1)
     if (!title || !exam_type || !start_date || !end_date) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Missing required fields. title, exam_type, start_date, and end_date are required."
+        message: "Please fill all required fields (title, class, type).. title, exam_type, start_date, and end_date are required."
       });
     }
 
@@ -116,13 +116,13 @@ exports.createTimetable = async (req, res) => {
 
   } catch (error) {
     if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "A timetable for this class and exam type already exists. Please update the existing one instead."
+        message: "A timetable for this class already exists. Please edit the existing one."
       });
     }
     console.error("Create Timetable Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(200).json({ success: false, message: "Could not create timetable. Please try again.", error: error.message });
   }
 };
 
@@ -161,7 +161,7 @@ exports.getTimetables = async (req, res) => {
 
   } catch (error) {
     console.error("Get Timetables Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(200).json({ success: false, message: "Unable to load timetables. Please try again.", error: error.message });
   }
 };
 
@@ -182,14 +182,14 @@ exports.getTimetableById = async (req, res) => {
     );
 
     if (timetables.length === 0) {
-      return res.status(404).json({ success: false, message: "Timetable not found" });
+      return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
     }
 
     res.json({ success: true, data: timetables[0] });
 
   } catch (error) {
     console.error("Get Timetable By ID Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(200).json({ success: false, message: "Unable to load timetable details. Please try again.", error: error.message });
   }
 };
 
@@ -247,7 +247,7 @@ exports.updateTimetable = async (req, res) => {
     );
 
     if (result[0].length === 0) {
-      return res.status(404).json({ success: false, message: "Timetable not found" });
+      return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
     }
 
     res.json({
@@ -258,13 +258,13 @@ exports.updateTimetable = async (req, res) => {
 
   } catch (error) {
     if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "A timetable for this class and exam type already exists. Cannot update to a duplicate exam type."
+        message: "A timetable with this exam type already exists for this class."
       });
     }
     console.error("Update Timetable Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(200).json({ success: false, message: "Could not update timetable. Please try again.", error: error.message });
   }
 };
 
@@ -289,7 +289,7 @@ exports.deleteTimetable = async (req, res) => {
     );
 
     if (result[0].length === 0) {
-      return res.status(404).json({ success: false, message: "Timetable not found" });
+      return res.status(200).json({ success: false, message: "Timetable not found. It may have been deleted." });
     }
 
     res.json({
@@ -299,6 +299,6 @@ exports.deleteTimetable = async (req, res) => {
 
   } catch (error) {
     console.error("Delete Timetable Error:", error);
-    res.status(500).json({ success: false, message: "Server error", error: error.message });
+    res.status(200).json({ success: false, message: "Could not delete timetable. Please try again.", error: error.message });
   }
 };

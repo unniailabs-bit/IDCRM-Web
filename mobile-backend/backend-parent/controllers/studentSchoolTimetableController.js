@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 exports.getStudentSchoolTimetable = async (req, res) => {
@@ -36,7 +36,7 @@ exports.getStudentSchoolTimetable = async (req, res) => {
 
     } catch (error) {
         console.error("Student Get School Timetable Error:", error);
-        res.status(500).json({
+        res.status(200).json({
             success: false,
             message: "Server error"
         });

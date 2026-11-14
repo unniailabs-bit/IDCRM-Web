@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 const { QueryTypes } = require("sequelize");
 
 // ===================================
@@ -18,9 +18,9 @@ exports.raiseTicket = async (req, res) => {
     const { category, subject, description } = req.body;
 
     if (!category || !subject || !description) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
-        message: "Category, subject and description are required"
+        message: "Please fill in all required helpdesk fields., subject and description are required"
       });
     }
 
@@ -56,9 +56,9 @@ exports.raiseTicket = async (req, res) => {
 
   } catch (error) {
     console.error("Raise Ticket Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server Error"
+      message: "Could not raise ticket. Please try again."
     });
   }
 };
@@ -107,9 +107,9 @@ exports.getMyTickets = async (req, res) => {
 
   } catch (error) {
     console.error("Get My Tickets Error:", error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
-      message: "Server Error"
+      message: "Unable to load your tickets. Please try again."
     });
   }
 };

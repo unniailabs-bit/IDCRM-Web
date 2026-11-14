@@ -1,4 +1,4 @@
-const path = require('path');
+﻿const path = require('path');
 const fs = require('fs');
 const sequelize = require('../../config/db'); // ✅ import correctly
 const { QueryTypes } = require('sequelize');
@@ -16,7 +16,7 @@ exports.addCertificate = async (req, res) => {
     const { awarded_to, class_id, division_id, certificate_title, category, date_awarded } = req.body;
 
     if (!awarded_to || !class_id || !division_id || !certificate_title || !category || !date_awarded) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+      return res.status(200).json({ success: false, message: 'Please fill in all certificate fields before submitting.' });
     }
 
     // Sanitize inputs (remove extra quotes)
@@ -64,7 +64,7 @@ exports.addCertificate = async (req, res) => {
 
   } catch (error) {
     console.error('Add Certificate Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not create certificate. Please try again.' });
   }
 };
 
@@ -115,7 +115,7 @@ exports.getCertificates = async (req, res) => {
 
   } catch (error) {
     console.error('Get Certificates Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Unable to load certificates. Please try again.' });
   }
 };
 
@@ -148,7 +148,7 @@ exports.getCertificateById = async (req, res) => {
     );
 
     if (!certificate) {
-      return res.status(404).json({ success: false, message: 'Certificate not found' });
+      return res.status(200).json({ success: false, message: 'Certificate not found. It may have been deleted.' });
     }
 
     const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
@@ -161,7 +161,7 @@ exports.getCertificateById = async (req, res) => {
 
   } catch (error) {
     console.error('Get Certificate By ID Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not update certificate. Please try again.' });
   }
 };
 
@@ -183,7 +183,7 @@ exports.deleteCertificate = async (req, res) => {
     );
 
     if (!certificate) {
-      return res.status(404).json({ success: false, message: 'Certificate not found' });
+      return res.status(200).json({ success: false, message: 'Certificate not found. It may have been deleted.' });
     }
 
     if (certificate.certificate_image) {
@@ -200,6 +200,6 @@ exports.deleteCertificate = async (req, res) => {
 
   } catch (error) {
     console.error('Delete Certificate Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    res.status(200).json({ success: false, message: 'Could not delete certificate. Please try again.' });
   }
 };

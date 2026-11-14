@@ -1,4 +1,4 @@
-const sequelize = require("../../config/db");
+﻿const sequelize = require("../../config/db");
 
 /**
  * GET SCHOOL CALENDAR
@@ -47,7 +47,7 @@ exports.getSchoolCalendar = async (req, res) => {
 
     } catch (err) {
         console.error("Get School Calendar Error:", err);
-        res.status(500).json({
+        res.status(200).json({
             success: false,
             message: "Server error"
         });
