@@ -203,8 +203,8 @@ app.use("/api/teacher", studentsDetailsRoutes);
 app.use("/api/teacher", teacherImageUploadRoutes);
 // Student Form and Sharing
 app.use('/api/student-forms', studentFormsRoutes);
+app.use('/api/student/public', require('./backend-school/routes/publicStudentRoutes')); // Public student by ID (QR scan) – must be BEFORE /api/student
 app.use('/api/student', require('./backend-school/routes/publicVerifyStudentRoutes'));
-app.use('/api/student/public', require('./backend-school/routes/publicStudentRoutes')); // [NEW] Public Student Search
 app.use('/api/public/book-demo', require('./backend-superadmin/routes/bookDemoRoutes'));
 app.use('/api/teacher', studentFormShareRoutes);
 
