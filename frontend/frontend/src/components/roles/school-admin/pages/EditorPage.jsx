@@ -1,4 +1,4 @@
-import { school } from '../consts/studentsConst';
+﻿import { school } from '../consts/studentsConst';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Toolbar } from '../components/Toolbar';
@@ -60,6 +60,7 @@ const generateMockStudents = (schoolData) => Array.from({ length: 25 }).map((_, 
   trust_name: schoolData.trust_name || school.trust_name,
   school_logo: schoolData.school_logo || school.school_logo,
   principal_sign: schoolData.principal_sign || school.principal_sign,
+  qr_code_value: `${(import.meta.env.VITE_FRONTEND_URL || "https://app.shikshalay.in")}/verify/mock-token-${i + 1}`,
 }));
 
 export const EditorPage = () => {
@@ -788,8 +789,8 @@ export const EditorPage = () => {
               className="bg-transparent text-sm focus:outline-none cursor-pointer"
             >
               <option value="en">English</option>
-              <option value="mr">मराठी</option>
-              <option value="hi">हिंदी</option>
+              <option value="mr">à¤®à¤°à¤¾à¤ à¥€</option>
+              <option value="hi">à¤¹à¤¿à¤‚à¤¦à¥€</option>
             </select>
           </div>
 

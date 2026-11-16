@@ -1,4 +1,5 @@
 import React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { CardElement } from './CardElement';
 import { getPageLayout, PAGE_MARGIN_MM } from '../utils';
 import { translateBatch } from '../../../../utils/translationService';
@@ -24,6 +25,7 @@ const extractValue = (element, student, schoolData) => {
         mother_phone: ['mother_phone', 'motherPhone'],
         parent_email: ['parent_email', 'parentEmail'],
         emergency_contact: ['emergency_contact', 'emergencyContact'],
+        qr_code_value: ['qr_code_value', 'qrCodeValue', 'form_token'],
       };
 
       const possibleKeys = map[key] || [key];
@@ -344,11 +346,24 @@ export const PrintPreview = (props) => {
                     };
                   }
 
+                  // QR Code logic - build a real per-student URL so the QR is scannable
+                  if (element.type === 'qrcode') {
+                    const base = (typeof window !== 'undefined' && window.location?.origin) || '';
+                    const sid = s?.id || s?.student_id || s?._id || '';
+                    const qrVal =
+                      s?.qr_code_value ||
+                      s?.qrCodeValue ||
+                      (sid ? `${base}/student-id/${sid}` : '');
+                    resolvedContent = qrVal || element.content || '';
+                  }
+
                   // Clone element with resolved content
                   const resolvedElement = {
                     ...element,
                     content: resolvedContent,
                     data: resolvedData,
+                    // Pass the full student object so CardElement can build the QR URL
+                    studentData: s,
                   };
 
                   return (
@@ -370,7 +385,7 @@ export const PrintPreview = (props) => {
                             : 'hidden',
                       }}
                     >
-                      <CardElement element={resolvedElement} />
+                      <CardElement element={resolvedElement} data={s} />
                     </div>
                   );
                 })}

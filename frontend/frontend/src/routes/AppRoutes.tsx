@@ -67,6 +67,7 @@ import { SchoolReports } from '../components/roles/school-admin/SchoolReports';
 import { SchoolCredits } from '../components/roles/school-admin/SchoolCredits';
 import { Notifications } from '../components/roles/school-admin/Notifications';
 import StudentDataView from '../components/roles/school-admin/StudentDataView';
+import StudentIdCard from '../pages/StudentIdCard';
 import { FeesModule } from '../components/roles/school-admin/FeesModule';
 import { HolidayCalendar } from '../components/roles/school-admin/HolidayCalendar';
 import { AppointmentManagement } from '../components/roles/school-admin/AppointmentManagement';
@@ -574,6 +575,8 @@ export function AppRoutes() {
       />
 
       {/* Public Routes - No Authentication Required */}
+      {/* Student ID card page – scanned from QR on printed ID cards */}
+      <Route path="/student-id/:id" element={<StudentIdCard />} />
       <Route path="/public-form/:token" element={<PublicFormPage />} />
       <Route path="/verify/:token" element={<VerifyStudent />} />
 

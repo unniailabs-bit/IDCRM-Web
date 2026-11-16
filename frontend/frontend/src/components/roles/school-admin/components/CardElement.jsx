@@ -1,4 +1,6 @@
 import React, { useId } from "react";
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
+import QrImage from './QrImage';
 import { MM_TO_PX } from "../utils";
 
 // Polygon shapes drawn in a 0-100 viewBox, stretched to the element box
@@ -33,7 +35,7 @@ const fillBackground = (style) => {
 export const CardElement = ({ element, scale = 1, isPreview = false }) => {
   const gradientId = `grad-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   if (!element) return null;
-  const { type, subType, content, style, data } = element;
+  const { type, subType, content, style, data, studentData } = element;
 
   // Extract numeric border width to handle scale and prevent double 'px' units
   const rawBorderWidth = style?.borderWidth !== undefined && style?.borderWidth !== ""
@@ -224,6 +226,83 @@ export const CardElement = ({ element, scale = 1, isPreview = false }) => {
     );
   }
 
+
+  // QR Code element
+  if (type === 'qrcode') {
+    // studentData is injected by PrintPreview so we always have the full student object.
+    const sd = studentData || data || {};
+    const base = (import.meta?.env?.VITE_FRONTEND_URL) || window.location.origin;
+    const studentId = sd?.id || sd?.student_id || sd?._id || '';
+    const qrValue =
+      element.content ||
+      sd?.qr_code_value ||
+      sd?.qrCodeValue ||
+      (studentId ? `${base}/student-id/${studentId}` : '');
+
+    const fgColor = style?.foregroundColor || style?.color || '#000000';
+    const bgColor = style?.backgroundColor || '#ffffff';
+    const hasData = Boolean(qrValue && qrValue.trim());
+    const qrPx = Math.max(32, Math.round(Math.min(element.width, element.height) * scale * 3.78 - 8 * scale));
+
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: bgColor,
+          borderRadius: cornerRadiusPx ? `${cornerRadiusPx}px` : undefined,
+          border: scaledBorderWidth > 0
+            ? `${scaledBorderWidth}px ${borderStyle} ${borderColor}`
+            : 'none',
+          boxShadow: shadow,
+          overflow: 'hidden',
+          transform: rotation,
+          opacity: style?.opacity ?? 1,
+          padding: 4 * scale,
+          cursor: hasData ? 'pointer' : undefined,
+        }}
+        onClick={() => {
+          if (hasData && qrValue.startsWith('http')) window.open(qrValue, '_blank');
+        }}
+      >
+        {hasData ? (
+          // QRCodeCanvas renders to <canvas> which html2canvas captures natively – QR shows in PDF.
+          <QRCodeCanvas
+            value={qrValue}
+            size={qrPx}
+            fgColor={fgColor}
+            bgColor={bgColor}
+            level="M"
+            style={{ width: '100%', height: '100%', display: 'block' }}
+          />
+        ) : (
+          <div style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: `2px dashed ${fgColor}`,
+            borderRadius: 4,
+            color: fgColor,
+            fontSize: 10 * scale,
+            gap: 4 * scale,
+          }}>
+            <svg viewBox="0 0 24 24" width={24 * scale} height={24 * scale} fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+              <path d="M14 14h3v3M17 20h3M20 17v3"/>
+            </svg>
+            <span>QR Code</span>
+          </div>
+        )}
+      </div>
+    );
+  }
   // Default Text / Field
   return <div style={commonStyle}>{content || "Text"}</div>;
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useTranslation } from "react-i18next";
 import {
   Type,
@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Bookmark,
   Slash,
+  QrCode,
 } from 'lucide-react';
 
 // Default look for filled shapes: solid blue, no border
@@ -229,6 +230,14 @@ export const Toolbar = ({ onAddElement }) => {
           label: t("translation.emergencyContact"),
           icon: Phone,
           field: 'student.emergency_contact',
+        },
+        {
+          type: 'qrcode',
+          label: t("translation.qrCode", "QR Code"),
+          icon: QrCode,
+          field: 'student.qr_code_value',
+          defaultSize: { width: 25, height: 25 },
+          defaultData: { text: 'QR Code' },
         },
       ],
     },
