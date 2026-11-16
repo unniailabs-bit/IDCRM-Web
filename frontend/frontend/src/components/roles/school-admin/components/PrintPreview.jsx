@@ -349,12 +349,11 @@ export const PrintPreview = (props) => {
                   // QR Code logic - build a real per-student URL so the QR is scannable
                   if (element.type === 'qrcode') {
                     const base = (typeof window !== 'undefined' && window.location?.origin) || '';
-                    const sid = s?.id || s?.student_id || s?._id || '';
-                    const qrVal =
-                      s?.qr_code_value ||
-                      s?.qrCodeValue ||
-                      (sid ? `${base}/student-id/${sid}` : '');
-                    resolvedContent = qrVal || element.content || '';
+                    const token = s?.form_token || s?.formToken;
+                    const qrVal = token
+                      ? `${base}/verify/${encodeURIComponent(token)}`
+                      : '';
+                    resolvedContent = qrVal;
                   }
 
                   // Clone element with resolved content

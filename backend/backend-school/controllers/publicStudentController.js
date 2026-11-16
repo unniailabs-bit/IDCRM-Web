@@ -13,6 +13,7 @@ exports.getStudentByFormId = async (req, res) => {
     const query = `
       SELECT
         sf.id,
+        sf.form_token,
         sf.roll_number,
         TRIM(CONCAT_WS(' ', sf.first_name, sf.middle_name, sf.last_name)) AS student_name,
         sf.first_name, sf.middle_name, sf.last_name,

@@ -232,12 +232,13 @@ export const CardElement = ({ element, scale = 1, isPreview = false }) => {
     // studentData is injected by PrintPreview so we always have the full student object.
     const sd = studentData || data || {};
     const base = (import.meta?.env?.VITE_FRONTEND_URL) || window.location.origin;
-    const studentId = sd?.id || sd?.student_id || sd?._id || '';
+    const token = sd?.form_token || sd?.formToken;
     const qrValue =
-      element.content ||
-      sd?.qr_code_value ||
-      sd?.qrCodeValue ||
-      (studentId ? `${base}/student-id/${studentId}` : '');
+      token
+        ? `${base.replace(/\/+$/, '')}/verify/${encodeURIComponent(token)}`
+        : studentData
+          ? ''
+          : element.content || sd?.qr_code_value || sd?.qrCodeValue || '';
 
     const fgColor = style?.foregroundColor || style?.color || '#000000';
     const bgColor = style?.backgroundColor || '#ffffff';

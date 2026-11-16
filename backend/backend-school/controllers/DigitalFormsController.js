@@ -206,6 +206,7 @@ const getClassStudentForms = async (req, res) => {
     const students = await sequelize.query(
       `SELECT DISTINCT ON (sf.id)
       sf.id,
+      sf.form_token,
       sf.roll_number,
       sf.gr_number,
       sf.first_name,
