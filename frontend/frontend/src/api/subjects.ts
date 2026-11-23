@@ -58,5 +58,29 @@ export const subjectsApi = {
       throw error;
     }
   },
+
+  updateSubject: async (subjectId: number, subjectData: { name: string }): Promise<{ success: boolean; message: string; data: Subject }> => {
+    try {
+      try {
+        const response = await axiosInstance.patch<{ success: boolean; message: string; data: Subject }>(
+          `/api/superadmin/subjects/${subjectId}`,
+          subjectData
+        );
+        return response.data;
+      } catch (superAdminError: any) {
+        if (superAdminError.response?.status === 401 || superAdminError.response?.status === 403) {
+          const response = await axiosInstance.patch<{ success: boolean; message: string; data: Subject }>(
+            `/api/trust/subjects/${subjectId}`,
+            subjectData
+          );
+          return response.data;
+        }
+        throw superAdminError;
+      }
+    } catch (error) {
+      console.error('Error updating subject:', error);
+      throw error;
+    }
+  },
 };
 

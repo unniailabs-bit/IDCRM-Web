@@ -89,5 +89,88 @@ const createSubject = async (req, res) => {
   }
 };
 
-module.exports = { getAllSubjects, createSubject };
+// ---------------- Update Subject Name (for Super Admin) ----------------
+const updateSubject = async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Subject name is required'
+    });
+  }
+
+  try {
+    const updatedSubject = await sequelize.transaction(async (transaction) => {
+      const currentSubjects = await sequelize.query(
+        `SELECT id, name, description, created_at, updated_at
+         FROM subjects
+         WHERE id = :id`,
+        { replacements: { id }, type: QueryTypes.SELECT, transaction }
+      );
+
+      if (currentSubjects.length === 0) {
+        const error = new Error('Subject not found');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const duplicates = await sequelize.query(
+        `SELECT id FROM subjects
+         WHERE LOWER(name) = LOWER(:name) AND id <> :id`,
+        { replacements: { name: name.trim(), id }, type: QueryTypes.SELECT, transaction }
+      );
+
+      if (duplicates.length > 0) {
+        const error = new Error('Subject with this name already exists');
+        error.statusCode = 409;
+        throw error;
+      }
+
+      await sequelize.query(
+        `UPDATE subjects
+         SET name = :name, updated_at = NOW()
+         WHERE id = :id`,
+        { replacements: { name: name.trim(), id }, type: QueryTypes.UPDATE, transaction }
+      );
+
+      await sequelize.query(
+        `UPDATE teachers
+         SET subject = :name, updated_at = NOW()
+         WHERE LOWER(TRIM(subject)) = LOWER(:oldName)`,
+        {
+          replacements: { name: name.trim(), oldName: currentSubjects[0].name },
+          type: QueryTypes.UPDATE,
+          transaction
+        }
+      );
+
+      const [subject] = await sequelize.query(
+        `SELECT id, name, description, created_at, updated_at
+         FROM subjects
+         WHERE id = :id`,
+        { replacements: { id }, type: QueryTypes.SELECT, transaction }
+      );
+      return subject;
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subject updated successfully',
+      data: updatedSubject
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+    console.error('Update Subject Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while updating subject'
+    });
+  }
+};
+
+module.exports = { getAllSubjects, createSubject, updateSubject };
 

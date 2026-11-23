@@ -92,6 +92,8 @@ export function TeacherManagement() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [showCustomSubjectInput, setShowCustomSubjectInput] = useState(false);
   const [customSubjectName, setCustomSubjectName] = useState('');
+  const [isRenamingSubject, setIsRenamingSubject] = useState(false);
+  const [isUpdatingSubject, setIsUpdatingSubject] = useState(false);
 
   const schoolId = userData?.id;
 
@@ -191,11 +193,54 @@ export function TeacherManagement() {
   const handleEditSubjectChange = (value: string) => {
     if (value === '__add_new__') {
       setShowCustomSubjectInput(true);
+      setIsRenamingSubject(false);
       setEditTeacher({ ...editTeacher, subject: '' });
     } else {
       setEditTeacher({ ...editTeacher, subject: value });
       setShowCustomSubjectInput(false);
       setCustomSubjectName('');
+      setIsRenamingSubject(false);
+    }
+  };
+
+  const handleUpdateSubjectName = async () => {
+    const subject = subjects.find((item) => item.name === editTeacher.subject);
+    const name = customSubjectName.trim();
+    if (!subject || !name) {
+      toast.error(t('teacherManagement.enterSubjectName'));
+      return;
+    }
+
+    setIsUpdatingSubject(true);
+    try {
+      const response = await subjectsApi.updateSubject(subject.id, { name });
+      if (response.success && response.data) {
+        setSubjects((currentSubjects) =>
+          currentSubjects
+            .map((item) => (item.id === subject.id ? response.data : item))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setTeachers((currentTeachers) =>
+          currentTeachers.map((teacher) =>
+            teacher.subject?.toLowerCase() === subject.name.toLowerCase()
+              ? { ...teacher, subject: response.data.name }
+              : teacher
+          )
+        );
+        if (subjectFilter.toLowerCase() === subject.name.toLowerCase()) {
+          setSubjectFilter(response.data.name);
+        }
+        setEditTeacher((currentTeacher) => ({ ...currentTeacher, subject: response.data.name }));
+        setShowCustomSubjectInput(false);
+        setIsRenamingSubject(false);
+        setCustomSubjectName('');
+        toast.success(t('teacherManagement.subjectUpdatedSuccess'));
+      }
+    } catch (error: any) {
+      console.error('Error updating subject:', error);
+      toast.error(error.response?.data?.message || t('teacherManagement.subjectUpdateFailed'));
+    } finally {
+      setIsUpdatingSubject(false);
     }
   };
 
@@ -216,6 +261,7 @@ export function TeacherManagement() {
         setNewTeacher({ ...newTeacher, subject: existingSubject.name });
       }
       setShowCustomSubjectInput(false);
+      setIsRenamingSubject(false);
       setCustomSubjectName('');
       return;
     }
@@ -754,21 +800,38 @@ export function TeacherManagement() {
                 {t('teacherManagement.subjectFieldLabel')}
               </Label>
               {!showCustomSubjectInput ? (
-                <Select value={editTeacher.subject} onValueChange={handleEditSubjectChange}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder={t('teacherManagement.selectSubjectOrAdd')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((subject) => (
-                      <SelectItem key={subject.id} value={subject.name}>
-                        {subject.name}
+                <div className="col-span-3 flex gap-2">
+                  <Select value={editTeacher.subject} onValueChange={handleEditSubjectChange}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder={t('teacherManagement.selectSubjectOrAdd')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.name}>
+                          {subject.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__add_new__" className="font-semibold text-blue-600">
+                        {t('teacherManagement.addNewSubject')}
                       </SelectItem>
-                    ))}
-                    <SelectItem value="__add_new__" className="font-semibold text-blue-600">
-                      {t('teacherManagement.addNewSubject')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                    </SelectContent>
+                  </Select>
+                  {editTeacher.subject && subjects.some((subject) => subject.name === editTeacher.subject) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCustomSubjectName(editTeacher.subject);
+                        setIsRenamingSubject(true);
+                        setShowCustomSubjectInput(true);
+                      }}
+                    >
+                      <Edit className="mr-1 h-4 w-4" />
+                      {t('teacherManagement.renameSubject')}
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <div className="col-span-3 flex gap-2">
                   <Input
@@ -776,10 +839,17 @@ export function TeacherManagement() {
                     value={customSubjectName}
                     onChange={(e) => setCustomSubjectName(e.target.value)}
                     className="flex-1"
-                    onKeyPress={(e) => e.key === 'Enter' && handleCustomSubjectSubmit()}
+                    onKeyPress={(e) =>
+                      e.key === 'Enter' &&
+                      (isRenamingSubject ? handleUpdateSubjectName() : handleCustomSubjectSubmit())
+                    }
                     autoFocus
                   />
-                  <Button onClick={handleCustomSubjectSubmit} size="sm">
+                  <Button
+                    onClick={isRenamingSubject ? handleUpdateSubjectName : handleCustomSubjectSubmit}
+                    size="sm"
+                    disabled={isUpdatingSubject}
+                  >
                     <Save className="h-4 w-4" />
                   </Button>
                   <Button
@@ -787,6 +857,7 @@ export function TeacherManagement() {
                     size="sm"
                     onClick={() => {
                       setShowCustomSubjectInput(false);
+                      setIsRenamingSubject(false);
                       setCustomSubjectName('');
                     }}
                   >
